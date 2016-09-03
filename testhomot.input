@@ -1,0 +1,34 @@
+cube2 := sphereSolid(2)$CubicalComplexFactory
+fundamentalGroup(cube2)
+triangle2 := sphereSolid(2)$SimplicialComplexFactory
+fundamentalGroup(triangle2)
+
+cube3 := sphereSolid(3)$CubicalComplexFactory
+fundamentalGroup(cube3)
+triangle3 := sphereSolid(3)$SimplicialComplexFactory
+fundamentalGroup(triangle3)
+
+cube2s := sphereSurface(2)$CubicalComplexFactory
+fundamentalGroup(cube2s)
+triangle2s := sphereSurface(2)$SimplicialComplexFactory
+fundamentalGroup(triangle2s)
+
+cube3s := sphereSurface(3)$CubicalComplexFactory
+fundamentalGroup(cube3s)
+triangle3s := sphereSurface(3)$SimplicialComplexFactory
+fundamentalGroup(triangle3s)
+
+ctorus := torusSurface()$CubicalComplexFactory
+fundamentalGroup(ctorus)
+storus := torusSurface()$SimplicialComplexFactory
+fundamentalGroup(storus)
+
+cband := band()$CubicalComplexFactory
+fundamentalGroup(cband)
+sband := band()$SimplicialComplexFactory
+fundamentalGroup(sband)
+
+cproj := projectivePlane()$CubicalComplexFactory
+fundamentalGroup(cproj)
+sproj := projectivePlane()$SimplicialComplexFactory
+fundamentalGroup(sproj)

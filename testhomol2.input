@@ -1,0 +1,27 @@
+fillTriangle := sphereSolid(2)$SimplicialComplexFactory
+homology(fillTriangle)
+fundamentalGroup(fillTriangle)
+fillSquare := sphereSolid(2)$CubicalComplexFactory
+homology(fillSquare)
+fundamentalGroup(fillSquare)
+fillTetra := sphereSolid(3)$SimplicialComplexFactory
+homology(fillTetra)
+fundamentalGroup(fillTetra)
+fillCube := sphereSolid(3)$CubicalComplexFactory
+homology(fillCube)
+fundamentalGroup(fillCube)
+triangle := sphereSurface(2)$SimplicialComplexFactory
+homology(triangle)
+fundamentalGroup(triangle)
+tetra := sphereSurface(3)$SimplicialComplexFactory
+homology(tetra)
+fundamentalGroup(tetra)
+torus := torusSurface()$SimplicialComplexFactory
+homology(torus)
+fundamentalGroup(torus)
+proj := projectivePlane()$SimplicialComplexFactory
+homology(proj)
+fundamentalGroup(proj)
+klein := kleinBottle()$SimplicialComplexFactory
+homology(klein)
+fundamentalGroup(klein)

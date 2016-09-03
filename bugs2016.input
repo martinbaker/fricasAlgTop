@@ -1,0 +1,228 @@
+)set break resume
+)expose UnittestCount UnittestAux Unittest
+
+testsuite "bugs2016"
+
+testcase "bug in unparse"
+
+x1 := sqrt(-1)::EXPR INT
+xf1 := x1::InputForm
+xf2 := parse(unparse(xf1))$INFORM
+xf3 := atType(xf2)$InputFormFunctions1(EXPR INT)
+testEquals("interpret(xf3)", "x1")
+
+testcase "unparse of segment"
+
+testEquals("unparse((1..3)::INFORM)", "_"(1..3)$Segment(PositiveInteger())_"")
+
+testcase "symFunc"
+
+sF := SymmetricFunctions(Polynomial(Integer))
+testEquals("symFunc(a, 3)$sF", "vector [3*a, 3*a^2, a^3]")
+
+testcase "qnew and matrix manipulation"
+
+m2 := matrix([[1, 2], [3, 4]])$U32Matrix
+c1 := matrix([[1],[3]])$U32Matrix
+r1 := matrix([[3, 4]])$U32Matrix
+)expose MatrixManipulation
+testEquals("columns(m2, [0])", "c1")
+testEquals("rows(m2, [1])", "r1")
+
+testcase "equality in AlgebraicNumber"
+
+testTrue("not(sqrt(2)*sqrt(3)=sqrt(6) and sqrt(2)*sqrt(3)=-sqrt(6))")
+
+testcase "countRealRoots"
+
+testEquals("countRealRoots(x^4-1)", "2")
+
+testcase "hidden constant"
+
+dd := D(Gamma((n+1)/2, -b*z^2), z)
+nn := normalize(dd/(exp(n*log(z))*exp(b*z^2)))
+testEquals("D(nn, z)", "0")
+xftestTrue("not(member?('z, variables(nn)))")
+
+testcase "normalize of lambertW"
+
+testEquals("exp(lambertW(x))", "x/lambertW(x)")
+testEquals("normalize(exp(-lambertW(x)))", "lambertW(x)/x")
+testEquals("normalize(log(x/lambertW(x)))", "lambertW(x)")
+testEquals("normalize(log(lambertW(x)/x))", "-lambertW(x)")
+
+testcase "Smith form of empty matrices"
+
+mI := Matrix(Integer)
+vI := Vector(Integer)
+sP := SmithNormalForm(Integer, vI, vI, mI)
+
+m0 := zero(0, 0)$mI
+m1 := zero(0, 1)$mI
+m3 := zero(0, 3)$mI
+vv := vector([])$vI
+
+hr3 := completeHermite(m3)$sP
+testEquals("hr3.Hermite", "m3")
+testEquals("hr3.eqMat", "m0")
+
+sr0 := completeSmith(m0)$sP
+sr1 := completeSmith(m1)$sP
+sr3 := completeSmith(m3)$sP
+
+testEquals("sr0.Smith", "m0")
+testEquals("sr0.leftEqMat", "m0")
+testEquals("sr0.rightEqMat", "m0")
+
+testEquals("sr1.Smith", "m1")
+testEquals("sr1.leftEqMat", "m0")
+testEquals("sr1.rightEqMat", "matrix([[1]])$mI")
+
+testEquals("sr3.Smith", "m3")
+testEquals("sr3.leftEqMat", "m0")
+testEquals("sr3.rightEqMat", "scalarMatrix(3, 1)$mI")
+
+res0 := diophantineSystem(m0, vv)$sP
+res1 := diophantineSystem(m1, vv)$sP
+res3 := diophantineSystem(m3, vv)$sP
+
+testEquals("res0.particular", "vv")
+testTrue("empty?(res0.basis)")
+testEquals("res1.particular", "new(1, 0)$vI")
+testEquals("#(res1.basis)", "1")
+testEquals("first(res1.basis)", "vector([1])$vI")
+testEquals("res3.particular", "new(3, 0)$vI")
+testEquals("#(res3.basis)", "3")
+testEquals("determinant(matrix([parts(w) for w in res3.basis])$mI)", "1")
+
+testcase "plus and minus for Segment"
+
+testEquals("1 + (3..6)", "4..7")
+testEquals("(-10 .. -3) + 10", "0..7")
+testEquals("(0..6) - 1", "-1..5")
+
+testcase "plus and minus for UniversalSegment"
+
+testEquals("4 + (-6..)", "-2..")
+testEquals("(1..) + -3", "-2..")
+testEquals("(3..) - 5", "-2..")
+
+testcase "hashing Float"
+
+a := 1.0
+b := 2.0
+testEquals("hash(a)", "hash(a)")
+testTrue("not(hash(a) = hash(b))")
+
+testcase "hashing Fraction"
+
+a := 1/2
+b := 2/3
+testEquals("hash(a)", "hash(a)")
+testTrue("not(hash(a) = hash(b))")
+
+testcase "smith form"
+sP := SMITH(INT, Vector(INT), Vector(INT), Matrix(INT))
+-- captures global mm
+test_smith() : Void ==
+    testTrue("(res := completeSmith(mm)$sP; true)")
+    testEquals("res.leftEqMat*mm*res.rightEqMat", "res.Smith")
+    testEquals("abs(determinant(res.leftEqMat))", "1")
+    testEquals("abs(determinant(res.rightEqMat))", "1")
+
+mm := matrix([[0, -1, 0, 0], [1, 2, 3, 4], [2, 3, 2, 0]])
+test_smith()
+
+mm := matrix([[0, -1, 0, 1, 0], [2, 1, 3, 4, 5], [1, 2, 1, 2, 1],
+              [1, 2, 4, 8, 16]])
+test_smith()
+
+mm := matrix([[0,1,0,0,0,0,0,1],[0,0,0,0,0,0,0,0],[1,0,0,1,0,0,0,0],
+              [0,0,0,0,0,0,0,0],[1,1,0,0,0,0,0,0]])$Matrix(Integer)
+test_smith()
+
+mm := matrix([[1,1,0,0,0,0,1,0],[0,1,0,0,1,1,0,0],[1,0,0,-2,0,0,1,0],
+              [0,1,0,5,1,0,0,0],[0,0,0,0,1,0,0,0]])
+test_smith()
+
+testcase "homology"
+
+vs1 := vertexSeta(1)$VertexSetAbstract
+dC := DeltaComplex(VertexSetAbstract)
+
+hz0 := homology0()$Homology()
+hz1 := homologyz()$Homology()
+hz2 := homology([], [], [[1, 0],[0, 1]])$Homology()
+hz3 := homology([], [], [[1, 0, 0], [0, 1, 0], [0, 1, 0]])$Homology()
+hz3 := homology([], [], [[1, 0, 0], [0, 1, 0], [0, 1, 0]])$Homology()
+hc2 := homology([[1]], [2], [])$Homology()
+hc3 := homology([[1]], [3], [])$Homology()
+
+-- circle
+sd1 := deltaComplex(vs1, [[[1, -1]]])$dC
+hsd1 := homology(sd1)
+testEquals("hsd1(1)", "hz1")
+testEquals("hsd1(2)", "hz1")
+
+-- point + 2-cell with empty boundary
+-- not clear if we consider this to be valid complex...
+sd2 := deltaComplex(vs1, [[], [[]]])$dC
+hsd2 := homology(sd2)
+testEquals("hsd2(1)", "hz1")
+testEquals("hsd2(2)", "hz0")
+testEquals("hsd2(3)", "hz1")
+
+-- 2 and 3-dimensional torus
+td2 := deltaComplex(vs1, [[[1, -1], [1, -1]], [[1, 2, -1, -2]]])$dC
+htd2 := homology(td2)
+
+testEquals("htd2(1)", "hz1")
+testEquals("htd2(2)", "hz2")
+testEquals("htd2(3)", "hz1")
+
+td3 := deltaComplex(vs1, [[[1, -1], [1, -1], [1, -1]],
+        [[1, 2, -1, -2], [1, 3, -1, -3], [2, 3, -2, -3]],
+         [[1, -2, -1, 2, 3, -3]]])$dC
+htd3 := homology(td3)
+testEquals("htd3(1)", "hz1")
+testEquals("htd3(2)", "hz3")
+testEquals("htd3(3)", "hz3")
+testEquals("htd3(4)", "hz1")
+
+-- disc with boundary which winds around circle 3 times
+rd3 := deltaComplex(vs1, [[[1, -1]], [[1, 1, 1]]])$dC
+hrd3 := homology(rd3)
+testEquals("hrd3(1)", "hz1")
+testEquals("hrd3(2)", "hc3")
+testEquals("hrd3(3)", "hz0")
+
+s3 := sphereSurface(4)$SimplicialComplexFactory
+hs3 := homology(s3)
+testEquals("hs3(1)", "hz1")
+testEquals("hs3(2)", "hz0")
+testEquals("hs3(3)", "hz0")
+testEquals("hs3(4)", "hz1")
+
+p2 := projectivePlane()$SimplicialComplexFactory
+hp2 := homology(p2)
+
+testEquals("hp2(1)", "hz1")
+testEquals("hp2(2)", "hc2")
+testEquals("hp2(3)", "hz0")
+
+s1 := sphereSurface(2)$SimplicialComplexFactory
+t2 := product(s1, s1)
+ht2 := homology(t2)
+testEquals("ht2", "htd2")
+
+
+testcase "hashing SAE"
+
+T ==> SAE(INT, UP(y, INT), y^2+5)
+y : T := y
+testEquals("hash(y)", "hash(y)")
+testTrue("not(hash(y) = hash(y^3))")
+testEquals("hash(y^3)", "hash(-5*y)")
+
+)set output algebra on
+statistics()

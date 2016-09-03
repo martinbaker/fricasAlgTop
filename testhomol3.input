@@ -1,0 +1,8 @@
+fillTriangle := sphereSolid(2)$SimplicialComplexFactory
+homology(fillTriangle)
+fundamentalGroup(fillTriangle)
+deltaComplex(fillTriangle)
+fillSquare := sphereSolid(2)$CubicalComplexFactory
+homology(fillSquare)
+fundamentalGroup(fillSquare)
+deltaComplex(fillSquare)

@@ -1,0 +1,3 @@
+b1 := sphereSolid(2)$SimplicialComplexFactory
+c1 := chain(b1)
+cochainComplex(c1)

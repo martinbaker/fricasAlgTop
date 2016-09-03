@@ -1,0 +1,234 @@
+Hi,
+
+I'm still working on my code for homology of simplicial and cubical
+complexes and I'm a bit stuck trying to understand the FriCAS packages
+for SmithNormalForm.
+
+Are there any examples or tutorials of how to use this code?
+
+What I am trying to do is go from the matrices (differentials) in the
+chain complex to the generators and divisors of the abelian group. I
+have put sage code which does what I want below. I don't just want to
+reverse engineer this sage code in SPAD I want to understand the SPAD
+packages so that I can write code that is meaningful to me and makes
+best use of the existing SPAD libraries. Having said that, a translation
+of this code into SPAD would be a good start.
+
+As far as I can see this code is solving a set of linear equations by
+augmenting the matrix but the details go over my head.
+
+Any pointers appreciated.
+
+my code so far is here:
+https://github.com/martinbaker/multivector/blob/master/algebraictopology.spad
+
+My documentation for this code is here:
+http://www.euclideanspace.com/prog/scratchpad/mycode/topology/simplex/
+http://www.euclideanspace.com/prog/scratchpad/mycode/topology/cubical/
+
+Thanks,
+
+Martin B
+
+---------------------------------------------------------
+Sage code that does what I want:
+
+     def _homology_generators_snf(self, d_in, d_out, d_out_rank):
+         """
+         Compute the homology generators using the Smith normal form.
+
+         EXAMPLES::
+
+             sage: C = ChainComplex({0: matrix(ZZ, 2, 3, [3, 0, 0, 0, 0,
+0])})
+             sage: C.homology(1)
+             Z x C3
+             sage: C._homology_generators_snf(C.differential(0),
+C.differential(1), 0)
+             ([3, 0], [(1, 0), (0, 1)])
+         """
+         # Find the kernel of the out-going differential.
+         K =
+d_out.right_kernel().matrix().transpose().change_ring(d_out.base_ring())
+
+         # Compute the induced map to the kernel
+         S = K.augment(d_in).hermite_form()
+         d_in_induced = S.submatrix(row=0, nrows=d_in.nrows()-d_out_rank,
+                                    col=d_in.nrows()-d_out_rank,
+ncols=d_in.ncols())
+
+         # Find the SNF of the induced matrix and appropriate generators
+         (N, P, Q) = d_in_induced.smith_form()
+         all_divs = [0]*N.nrows()
+         non_triv = 0
+         for i in range(0, N.nrows()):
+             if i >= N.ncols():
+                 break
+             all_divs[i] = N[i][i]
+             if N[i][i] == 1:
+                 non_triv = non_triv + 1
+         divisors = [x for x in all_divs if x != 1]
+         gens = (K * P.inverse().submatrix(col=non_triv)).columns()
+         return divisors, gens
+
+Am 31.05.2016 um 19:46 schrieb Martin Baker:
+> On 31/05/16 16:51, Kurt Pagani wrote:
+>> Hallo Martin
+>>
+>> I'm not aware of any examples/tutorials of
+>> http://fricas.github.io/api/SmithNormalForm.html, but it looks pretty
+>> straightforward.
+>
+
+> Well I'm not even sure what to use for the package type parameters:
+> R: EuclideanDomain
+> Row: FiniteLinearAggregate R
+> Col: FiniteLinearAggregate R
+> M: MatrixCategory(R, Row, Col)
+
+
+For instance the example in https://en.wikipedia.org/wiki/Smith_normal_form:
+
+
+
+                       FriCAS Computer Algebra System
+                            Version: FriCAS 1.2.7
+                   Timestamp: Sat Mar 26 17:23:40 GMT 2016
+-----------------------------------------------------------------------------
+   Issue )copyright to view copyright notices.
+   Issue )summary for a summary of useful system commands.
+   Issue )quit to leave FriCAS and return to shell.
+-----------------------------------------------------------------------------
+
+   ">>> .axiom.input"
+                                                                   Type:
+Void
+(2) -> A:=matrix [[2,4,4],[-6,6,12],[10,-4,-16]]
+
+        + 2    4    4  +
+        |              |
+   (2)  |- 6   6    12 |
+        |              |
+        +10   - 4  - 16+
+                                                        Type:
+Matrix(Integer)
+(3) -> smith A
+
+        +2  0  0 +
+        |        |
+   (3)  |0  6  0 |
+        |        |
+        +0  0  12+
+                                                        Type:
+Matrix(Integer)
+
+
+
+
+(4) -> R==>Integer
+                                                                   Type:
+Void
+(5) -> Row==>Vector R
+                                                                   Type:
+Void
+(6) -> Col==>Vector R
+                                                                   Type:
+Void
+(7) -> M==>Matrix R
+                                                                   Type:
+Void
+(8) -> SMNF==>SmithNormalForm(R, Row, Col, M)
+                                                                   Type:
+Void
+(9) -> SMNF
+
+   (9)
+   SmithNormalForm(Integer,Vector(Integer),Vector(Integer),Matrix(Integer))
+                                                                   Type:
+Type
+
+
+(10) -> smith(A)$SMNF
+
+         +2  0  0 +
+         |        |
+   (10)  |0  6  0 |
+         |        |
+         +0  0  12+
+                                                        Type:
+Matrix(Integer)
+
+
+(11) -> completeSmith(A)$SMNF
+
+   (11)
+           +2  0  0 +            + 1    0    0 +             +1  - 2  - 2+
+           |        |            |             |             |           |
+   [Smith= |0  6  0 |,leftEqMat= |- 1   3    2 |,rightEqMat= |0   1    0 |]
+           |        |            |             |             |           |
+           +0  0  12+            + 3   - 4  - 3+             +0   0    1 +
+Type: Record(Smith: Matrix(Integer),leftEqMat:
+Matrix(Integer),rightEqMat: Matri
+x(Integer))
+
+etc.
+
+
+
+>
+> At the moment Id be happy to limit the code to homology over Z (Integer).
+>
+> and I'm not fully upto speed on the theory either.
+>
+>> See e.g. here for a GAP impl:
+>> http://ljk.imag.fr/membres/Jean-Guillaume.Dumas/Publications/DHSW.pdf
+>
+> This looks very interesting, perhaps at this stage I should do some more
+> reading before taking up more of your time.
+
+Not at all.
+
+
+
+
+Kurt Pagani wrote:
+>
+> (11) -> completeSmith(A)$SMNF
+>
+>    (11)
+>            +2  0  0 +            + 1    0    0 +             +1  - 2  - 2+
+>            |        |            |             |             |           |
+>    [Smith= |0  6  0 |,leftEqMat= |- 1   3    2 |,rightEqMat= |0   1    0 |]
+>            |        |            |             |             |           |
+>            +0  0  12+            + 3   - 4  - 3+             +0   0    1 +
+> Type: Record(Smith: Matrix(Integer),leftEqMat:
+> Matrix(Integer),rightEqMat: Matri
+> x(Integer))
+
+Just to connect this to homology: if A is matrix for D_{k+1} and
+B is matrix for D_k, so that B*A = 0, then torsion part of
+homology can be read directly from the Smith form of A: rows
+of leftEqMat give you generators and diagonal entries give
+order.  If diagonal entry is 1, then coresponding cyclic
+group is trivial and generator is not needed at all.  In
+the case above we get:
+
+[1    0    0] of order 2
+[- 1   3    2] of order 6
+[3   - 4  - 3] of order 12
+
+as generators of torsion part.  Note that torsion part depends
+only on A, as long as B*A = 0 it does not depend on B.
+Since A is of full rank in this case free part of homology
+group is trivial, so the generators above give full description
+of homology.  In general free part of homology may be
+computed over rational.  We can use the following trick:
+let W be kernel of B treated as matrix over rationals and
+let V be ortogonal complement of image of A (again over rationals).
+Now W/Im(A) isomorphic to W \cap V.  V is kernel of transpose(A),
+so to compute W \cap V it is enough to compute kernel of
+C := horizConcat(B, transpose(A)).  You can use completeSmith
+to get integer basis of this kernel.
+
+-- 
+                              Waldek Hebisch

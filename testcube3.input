@@ -1,0 +1,17 @@
+ACUBE := FiniteCubicalComplex(VertexSetAbstract)
+vs1:VertexSetAbstract := vertexSeta(4::NNI)
+Sq1 := cubicalFacet(1,[1..2,1..2])
+Sq2 := cubicalFacet(1,[2..3,1..2])
+Sq3 := cubicalFacet(1,[3..4,1..2])
+Sq4 := cubicalFacet(1,[1..2,2..3])
+Sq5 := cubicalFacet(1,[3..4,2..3])
+Sq6 := cubicalFacet(1,[1..2,3..4])
+Sq7 := cubicalFacet(1,[2..3,3..4])
+Sq8 := cubicalFacet(1,[3..4,3..4])
+sq1:=cubicalComplex(vs1,[Sq1,Sq2,Sq3,Sq4,Sq5,Sq6,Sq7,Sq8])$ACUBE
+delta(sq1)
+d3 := sq1::DeltaComplex(VertexSetAbstract)
+chain(d3)
+homology(sq1)
+
+

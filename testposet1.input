@@ -1,0 +1,60 @@
+)co logic
+
+-- creating a lattice example over strings
+objs := ["false","a","nota","true"]
+arr := [[true,true,true,true],[false,true,false,true], [false,false,true,true], [false,false,false,true]]
+pset  := finitePoset(objs,arr)
+FL := FiniteLattice(String,pset)
+a := finiteLattice("a")$FL
+b := finiteLattice("nota")$FL
+a /\ b
+a \/ b
+
+-- creating a lattice example over symbols
+objs2 := ["false"::Symbol,"a"::Symbol,"nota"::Symbol,"true"::Symbol]
+arr2 := [[true,true,true,true],[false,true,false,true], [false,false,true,true], [false,false,false,true]]
+pset2  := finitePoset(objs2,arr2)
+FL2 := FiniteLattice(Symbol,pset2)
+a2 := finiteLattice("a"::Symbol)$FL2
+b2 := finiteLattice("nota"::Symbol)$FL2
+a2 /\ b2
+a2 \/ b2
+
+-- powerset example
+ps := powerset(["a","b","c"])$PosetFactory(String)
+FL := FiniteLattice(List(String),ps)
+z := finiteLattice([])$FL
+a := finiteLattice(["a"])$FL
+b := finiteLattice(["b"])$FL
+c := finiteLattice(["c"])$FL
+a /\ b
+a /\ b /\ c
+
+
+PS2 := FinitePoset(String)
+hs := finitePoset(["a","b"],[[false,false],[false,false]])$PS2
+addObject!(hs,"c")$PS2
+addArrow!(hs,"alpha",1,2)
+addArrow!(hs,"alpha",2,3)
+
+isDirectSuccessor?(hs,1::NNI,2::NNI)
+le(hs,1::NNI,2::NNI)$PS2
+isDirectSuccessor?(hs,2::NNI,1::NNI)
+
+-- now create some diagrams
+diagramSvg("testLogic/testPoset1s1.svg",hs,true)
+T := terminal("a")$PS2
+I := initial()$PS2
+
+--hs3 := directedGraph(["x","y"])$GS
+--addArrow!(hs3,"beta",1,2)
+
+--hs4 := hs*hs3
+
+--hs5 := cartesian(hs2,hs3)
+--diagramSvg("testGraph/testGraph1s2.svg",hs5,true)
+
+incidenceMatrix(hs)
+adjacencyMatrix(hs)
+laplacianMatrix(hs)
+distanceMatrix(hs)

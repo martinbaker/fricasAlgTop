@@ -1,0 +1,6 @@
+sp := sphereSolid(2)$CubicalComplexFactory
+d5 := sp::DeltaComplex(VertexSetAbstract)
+chain(d5)
+homology(sp)
+
+

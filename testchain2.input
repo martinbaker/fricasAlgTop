@@ -1,0 +1,4 @@
+b5 := torusSurface()$SimplicialComplexFactory
+d5 := b5::DeltaComplex(VertexSetAbstract)
+f5 := chain(d5)
+homology(d5)

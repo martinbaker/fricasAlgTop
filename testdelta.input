@@ -1,0 +1,27 @@
+DELTA := DeltaComplex(VertexSetAbstract)
+b3 := sphereSolid(2)$SimplicialComplexFactory
+grade(b3)
+addImpliedFaces(b3)
+c3 := deltaComplex(b3)
+fundamentalGroup(c3)
+b4 := sphereSolid(3)$SimplicialComplexFactory
+grade(b4)
+addImpliedFaces(b4)
+c4 := deltaComplex(b4)
+fundamentalGroup(c4)
+f1 := sphereSolid(2)$SimplicialComplexFactory
+deltaComplex(f1)
+f2 := sphereSolid(3)$SimplicialComplexFactory
+deltaComplex(f2)
+f3 := sphereSurface(2)$SimplicialComplexFactory
+deltaComplex(f3)
+f4 := sphereSurface(3)$SimplicialComplexFactory
+deltaComplex(f4)
+f5 := torusSurface()$SimplicialComplexFactory
+deltaComplex(f5)
+f6 := projectivePlane()$SimplicialComplexFactory
+deltaComplex(f6)
+f7 := kleinBottle()$SimplicialComplexFactory
+deltaComplex(f7)
+cu1 := sphereSolid(2)$CubicalComplexFactory
+deltaComplex(cu1)
