@@ -1832,7 +1832,7 @@ FiniteSimplicialComplex(VS : VertexSet) : Exports == Impl where
        reslt := concat(reslt, orderedPermutation(rst, len))
        reslt
 
-   -- local function used in listUnion in addImpliedFaces
+   -- local function used in unorientedUnion in addImpliedFaces
    isNewFace?(lst : List(OrientedFacet), b : OrientedFacet) : Boolean ==
        --print("isNewFace?(" << a << ", " << b << ")")
        for a in lst repeat
@@ -1841,16 +1841,16 @@ FiniteSimplicialComplex(VS : VertexSet) : Exports == Impl where
        true
 
    -- local function used in addImpliedFaces
-   listUnion(a : List(OrientedFacet), b : List(OrientedFacet)
+   unorientedUnion(a : List(OrientedFacet), b : List(OrientedFacet)
             ) : List(OrientedFacet) ==
-       res := []$List(OrientedFacet)
-       for a1 in a repeat
-           res := concat(res, a1)
+       res := a
        for b1 in b repeat
            if isNewFace?(a, b1) then
-               res := concat(res, b1)
-       --print("listUnion(" << a << ", " << b << ") = " << res)
+               res := cons(b1, res)
+       -- print("unorientedUnion(" << a << ", " << b << ") = " << res)
        res
+
+   import from OutputForm
 
    -- A function to take a set of faces and add those that are implied
    -- by the simplicial complex conventions (if they don't already exist).
@@ -1865,27 +1865,29 @@ FiniteSimplicialComplex(VS : VertexSet) : Exports == Impl where
            --print("addImpliedFaces return because maxGrade=" << maxGrade)
            return res
        -- create an empty list for each grade
-       for a in 1..(maxGrade) repeat
-           res := concat(res, []$List(OrientedFacet))
+       res := []$List(List(OrientedFacet))
        newFaces := []$List(OrientedFacet)
-       for gr in inputList for grn in 1..(maxGrade) repeat
+       for gr in inputList repeat
            --print("addImpliedFaces grade number grn=" << grn)
            -- add old faces
-           for face in gr repeat
-               res.grn := concat(res.grn, face)
-           -- add new faces
-           for face in newFaces repeat
-               res.grn := concat(res.grn, face)
+           all_faces := unorientedUnion(newFaces, gr)
+           -- print(message("all_faces = "))
+           -- print(all_faces::OutputForm)
+           res := cons(all_faces, res)
            --print("addImpliedFaces empty newFaces. res.grn=" << res.grn)
-           newFaces := []$List(OrientedFacet)
+           newFaces := []
            --print("addImpliedFaces res.grn=" << res.grn)
-           for face in res.grn repeat
+           for face in all_faces repeat
+               -- FIXME: handle order 1 too
                len : NNI := (order(face) -1) pretend NNI
                if len > 0 then
-                   newFaces := listUnion(newFaces, allSubsets(face, len, len))
+                   newFaces := unorientedUnion(newFaces,
+                                               allSubsets(face, len, len))
+           -- print(message("newFaces = "))
+           -- print(newFaces::OutputForm)
            --print("addImpliedFaces get next grade res=" << res)
        --print("addImpliedFaces result=" << reverse(res))
-       reverse(res)
+       res
 
    -- Step down to the next lower dimension, this is like hollowing out the complex.
    -- It takes the highest dimension entries and replaces them with their boundaries,
@@ -2933,6 +2935,8 @@ SimplicialComplexFactory() : with
     ++ (A punctured projective plane is equivalent to a Moebius band)
   kleinBottle : () -> FiniteSimplicialComplex(VertexSetAbstract)
     ++ generate a minimal triangulation of the surface of a Klein bottle.
+  dunceHat : () -> FiniteSimplicialComplex(VertexSetAbstract)
+    ++ generate a minimal triangulation of dunceHat.
 
  == add
 
@@ -3001,6 +3005,17 @@ SimplicialComplexFactory() : with
       v1 : List(List(NNI)) := ([[3, 4, 8], [2, 3, 4], [2, 4, 6], [2, 6, 8],
          [2, 5, 8], [3, 5, 7], [2, 3, 7], [2, 7, 1], [2, 5, 1], [3, 5, 1],
          [4, 5, 8], [4, 5, 7], [4, 6, 7], [6, 7, 1], [3, 6, 1], [3, 6, 8]])
+      vs1 : VertexSetAbstract := vertexSeta(8::NNI)
+      r := simplicialComplex(vs1, v1)$ASIMP
+      r
+
+  -- generate a minimal triangulation of dunceHat.
+  dunceHat() : FiniteSimplicialComplex(VertexSetAbstract) ==
+      ASIMP := FiniteSimplicialComplex(VertexSetAbstract)
+      v1 : List(List(NNI)) := ([[1, 2, 8], [2, 3, 8], [3, 7, 8], [1 ,3, 7],
+         [1, 2, 7], [1, 6, 8], [1, 2, 6], [6, 7, 8], [2, 4, 6], [5, 6, 7],
+         [2, 5, 7], [4, 5, 6], [2, 3, 4], [2, 3, 5], [1, 3, 4], [1, 4, 5],
+         [1, 3, 5]])
       vs1 : VertexSetAbstract := vertexSeta(8::NNI)
       r := simplicialComplex(vs1, v1)$ASIMP
       r
@@ -3211,7 +3226,7 @@ SimplicialComplexTests() : with
 
   -- Local function to provide random FiniteSimplicialComplex.
   randomSimplicialComplex(n : NNI) : FiniteSimplicialComplex(VertexSetAbstract) ==
-      i : NNI := random(12) + 1
+      i : NNI := random(13) + 1
       if i=1 then return sphereSolid(2)$SimplicialComplexFactory
       if i=2 then return sphereSurface(2)$SimplicialComplexFactory
       if i=3 then return sphereSolid(3)$SimplicialComplexFactory
@@ -3224,6 +3239,7 @@ SimplicialComplexTests() : with
       if i=10 then return band()$SimplicialComplexFactory
       if i=11 then return moebiusBand()$SimplicialComplexFactory
       if i=12 then return projectivePlane()$SimplicialComplexFactory
+      if i=13 then return dunceHat()$SimplicialComplexFactory
       kleinBottle()$SimplicialComplexFactory
 
   --test OrientedFacet, these tests depend on random values so it
