@@ -1,0 +1,125 @@
+From 77100c09d80c186273bba5e7fed20101e9b8c895 Mon Sep 17 00:00:00 2001
+From: martinbaker <ax87438@martinb.com>
+Date: Sat, 24 Sep 2016 16:42:52 +0100
+Subject: [PATCH 6/6] DeltaComplexFactory
+
+---
+ src/algebra/alg_top.spad | 81 +++++++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 80 insertions(+), 1 deletion(-)
+
+diff --git a/src/algebra/alg_top.spad b/src/algebra/alg_top.spad
+index b1729fa..a0ab7c6 100644
+--- a/src/algebra/alg_top.spad
++++ b/src/algebra/alg_top.spad
+@@ -2939,6 +2939,9 @@ SimplicialComplexFactory() : with
+     ++ (A punctured projective plane is equivalent to a Moebius band)
+   kleinBottle : () -> FiniteSimplicialComplex(VertexSetAbstract)
+     ++ generate a minimal triangulation of the surface of a Klein bottle.
++  dunceHat : () -> FiniteSimplicialComplex(VertexSetAbstract)
++    ++ Generate a minimal triangulation of dunceHat.
++    ++ Triangulation from Kurt Pagani.
+ 
+  == add
+ 
+@@ -3011,6 +3014,81 @@ SimplicialComplexFactory() : with
+       r := simplicialComplex(vs1, v1)$ASIMP
+       r
+ 
++  -- generate a minimal triangulation of dunceHat.
++  dunceHat() : FiniteSimplicialComplex(VertexSetAbstract) ==
++      ASIMP := FiniteSimplicialComplex(VertexSetAbstract)
++      v1 : List(List(NNI)) := ([[1, 2, 8], [2, 3, 8], [3, 7, 8], [1 ,3, 7],
++         [1, 2, 7], [1, 6, 8], [1, 2, 6], [6, 7, 8], [2, 4, 6], [5, 6, 7],
++         [2, 5, 7], [4, 5, 6], [2, 3, 4], [2, 3, 5], [1, 3, 4], [1, 4, 5],
++         [1, 3, 5]])
++      vs1 : VertexSetAbstract := vertexSeta(8::NNI)
++      r := simplicialComplex(vs1, v1)$ASIMP
++      r
++
++)if false
++\section{DeltaComplex Factory}
++
++DeltaComplexFactory constructs example delta complexes for us.
++
++Theses can be smaller than DeltaComplexes constructed from SimplicialComplexes.
++)endif
++
++)abbrev package DELTCF DeltaComplexFactory
++++ Author: Martin Baker + some adapted from bugs2016.input by Waldek Hebisch
++++ Date Created: Sept 2016
++++ Description:
++++  Provides functions to construct various minimal delta complexes which
++++  can be smaller than if constructed from SimplicialComplexes.
++PI ==> PositiveInteger
++NNI==> NonNegativeInteger
++x<<y ==> hconcat(x::OutputForm, y::OutputForm)
++
++DeltaComplexFactory() : with
++  circle : () -> DeltaComplex(VertexSetAbstract)
++    ++ Generate a minimal circle from an edge from vertex A to A.
++  dunceHat : () -> DeltaComplex(VertexSetAbstract)
++    ++ generate a minimal dunceHat from 3 edges.
++  torusSurface : () -> DeltaComplex(VertexSetAbstract)
++    ++ generate a minimal 3-dimensional torus surface.
++  projectivePlane : () -> DeltaComplex(VertexSetAbstract)
++    ++ Generate a minimal projective plane.
++    ++ Derived from Hatcher p102.
++  kleinBottle : () -> DeltaComplex(VertexSetAbstract)
++    ++ generate a minimal Klein bottle.
++    ++ Derived from Hatcher p102.
++
++ == add
++
++  -- Generate a minimal circle from an edge from vertex A to A.
++  circle() : DeltaComplex(VertexSetAbstract) ==
++      dC := DeltaComplex(VertexSetAbstract)
++      vs1 := vertexSeta(1)$VertexSetAbstract
++      deltaComplex(vs1, [[[1, -1]]])$dC
++
++  -- generate a minimal dunceHat from 3 edges.
++  dunceHat() : DeltaComplex(VertexSetAbstract) ==
++      dC := DeltaComplex(VertexSetAbstract)
++      vs1 := vertexSeta(1)$VertexSetAbstract
++      deltaComplex(vs1, [[[1, -1]], [[1, 1, -1]]])$dC
++
++  -- generate a minimal torus.
++  torusSurface() : DeltaComplex(VertexSetAbstract) ==
++      dC := DeltaComplex(VertexSetAbstract)
++      vs1 := vertexSeta(1)$VertexSetAbstract
++      deltaComplex(vs1, [[[1, -1], [1, -1]], [[1, 2, -1, -2]]])$dC
++
++  -- generate a minimal projective plane.
++  projectivePlane() : DeltaComplex(VertexSetAbstract) ==
++      dC := DeltaComplex(VertexSetAbstract)
++      vs1 := vertexSeta(1)$VertexSetAbstract
++      deltaComplex(vs1, [[[1, -1], [1, -1]], [[1, -2, 1, -2]]])$dC
++
++  -- generate a minimal surface of a Klein bottle.
++  kleinBottle() : DeltaComplex(VertexSetAbstract) ==
++      dC := DeltaComplex(VertexSetAbstract)
++      vs1 := vertexSeta(1)$VertexSetAbstract
++      deltaComplex(vs1, [[[1, -1], [1, -1]], [[1, 2, 1, -2]]])$dC
++
+ )if false
+ \section{Cubical Complex Factory}
+ Provides functions to construct various Cubical complexes.
+@@ -3217,7 +3295,7 @@ SimplicialComplexTests() : with
+ 
+   -- Local function to provide random FiniteSimplicialComplex.
+   randomSimplicialComplex(n : NNI) : FiniteSimplicialComplex(VertexSetAbstract) ==
+-      i : NNI := random(12) + 1
++      i : NNI := random(13) + 1
+       if i=1 then return sphereSolid(2)$SimplicialComplexFactory
+       if i=2 then return sphereSurface(2)$SimplicialComplexFactory
+       if i=3 then return sphereSolid(3)$SimplicialComplexFactory
+@@ -3230,6 +3308,7 @@ SimplicialComplexTests() : with
+       if i=10 then return band()$SimplicialComplexFactory
+       if i=11 then return moebiusBand()$SimplicialComplexFactory
+       if i=12 then return projectivePlane()$SimplicialComplexFactory
++      if i=13 then return dunceHat()$SimplicialComplexFactory
+       kleinBottle()$SimplicialComplexFactory
+ 
+   --test OrientedFacet, these tests depend on random values so it
+-- 
+2.1.4
+
