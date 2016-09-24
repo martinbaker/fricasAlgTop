@@ -91,8 +91,8 @@ index b1729fa..a0ab7c6 100644
 +  -- generate a minimal projective plane.
 +  projectivePlane() : DeltaComplex(VertexSetAbstract) ==
 +      dC := DeltaComplex(VertexSetAbstract)
-+      vs1 := vertexSeta(1)$VertexSetAbstract
-+      deltaComplex(vs1, [[[1, -1], [1, -1]], [[1, -2, 1, -2]]])$dC
++      vs1 := vertexSeta(2)$VertexSetAbstract
++      deltaComplex(vs1, [[[1, -2], [1, -2]], [[1, -2, 1, -2]]])$dC
 +
 +  -- generate a minimal surface of a Klein bottle.
 +  kleinBottle() : DeltaComplex(VertexSetAbstract) ==
