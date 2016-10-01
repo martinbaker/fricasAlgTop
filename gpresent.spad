@@ -55,7 +55,40 @@ Despite these fundamental limits on what is theoretically possible
 I still believe it is worthwhile to have the capability to generate
 'a' homotopy group for a given structure.
 
-\section{Simplify}
+\section{Conversion between Finitely Presented and Permutation Groups}
+
+In FriCAS the main group functionality is in PermutationGroup so it
+would be useful to be able to convert to and from it.
+
+A finitely presented group may, or may not be, convertible to a permutation
+group. There is a well known method for this called the Todd–Coxeter
+algorithm, this uses coset enumeration.
+
+Since this algorithm is quite complicated I will start by implementing
+some more fundamental functions related to products, quotients, subgroups
+and cosets.
+
+What about the other direction? How do we attempt to convert a permutation
+group to a finitely presented group? The existing PermutationGroup has
+functions like wordInGenerators and wordsForStrongGenerators, does this help?
+Are there other existing functions that would help?
+I can find very little documentation about this.
+
+\section{Direct Product of Groups}
+
+If G = < Sg | Rg > and H = < Sh | Rh >
+Then G*H = < Sg,Sh | Rg,Rh,Rp >
+
+where:
+G*H is the direct product of G and H.
+Rp is a set of relations specifying that each element of Sg commutes
+with each element of Sh.
+See:
+\url{https://en.wikipedia.org/wiki/Direct_product_of_groups}
+
+This assumes that Sg and Sh are disjoint. In order to assure this the
+generators will be renumbered before doing the product.
+\section{Simplify Finitely Presented Groups}
 
 There may not be a simplest form but it is possible to do some
 simplifications.
@@ -178,6 +211,7 @@ which is in the algebraictopology.spad file here:
 
 GroupPresentation() : Exports == Impl where
   NNI ==> NonNegativeInteger
+  PI ==> PositiveInteger
   x<<y ==> hconcat(x::OutputForm, y::OutputForm)
   GENMAP ==> List(Record(OldGen : NNI, NewGen : NNI))
   Exports ==> SetCategory() with
@@ -203,9 +237,14 @@ GroupPresentation() : Exports == Impl where
       ++ they correspond to the appropriate entries in the relations.
       ++ Therefore we can refactor the generators without changing the
       ++ group represented.
-    --genName : (i2 : Integer) -> OutputForm
-    -- ++ display generators as alphabetic digits
-    -- ++ used by output form
+    directProduct : (a : %, b : %) -> %
+      ++ directProduct of two groups
+    cyclicGroup : (n : PI) -> %
+      ++ cyclicGroup(n) constructs the cyclic group of order n acting
+      ++ on the integers 1, ..., n.
+    dihedralGroup : (n : PI) -> %
+      ++ dihedralGroup(n) constructs the dihedral group of order 2n
+      ++ acting on integers 1, ..., N.
 
   Impl ==> add
 
@@ -535,6 +574,44 @@ GroupPresentation() : Exports == Impl where
            rep := isSimpler?(res, lastpass)
            lastpass := res
        res
+       
+   -- local function used by directProduct to offset indexes
+   offsetIndexes(a : %, offset : NNI) : % ==
+     ga : List(NNI) := entries(a.gens)
+     ra : List(List(Integer)) := a.rels
+     gb := [x+offset for x in ga]
+     rb := [[(if y>0 then y+offset else y-offset) for y in z] for z in ra]
+     groupPresentation(gb, rb)
+
+   -- directProduct of two groups
+   directProduct(a : %, b : %) : % ==
+     a2 : % := refactor(a)
+     ga : List(NNI) := entries(a2.gens)
+     ra : List(List(Integer)) := a2.rels
+     sa : NNI := #ga
+     b2 : % := offsetIndexes(refactor(b),sa)
+     gb : List(NNI) := entries(b2.gens)
+     rb : List(List(Integer)) := b2.rels
+     rc : List(List(Integer)) := []
+     for gax in ga repeat
+       for gbx in gb repeat
+         gcx : List(Integer) := [gax::Integer,gbx::Integer,gax::Integer,gbx::Integer]
+         rc := concat(rc,gcx)
+     groupPresentation(concat(entries(ga),gb),concat([ra,rb,rc]))
+
+   -- cyclicGroup(n) constructs the cyclic group of order n acting
+   -- on the integers 1, ..., n.
+   cyclicGroup(n : PI) : % ==
+     ga : List(NNI) := [1]
+     ra : List(List(Integer)) := [[1 for x in 1..(n pretend Integer)]]
+     groupPresentation(ga,ra)
+
+   -- dihedralGroup(n) constructs the dihedral group of order 2n
+   -- acting on integers 1, ..., N.
+   dihedralGroup(n : PI) : % ==
+     c1 : % := cyclicGroup(n)
+     c2 : % := cyclicGroup(2)
+     directProduct(c1,c2)
 
    -- output
    coerce(s : %) : OutputForm ==
