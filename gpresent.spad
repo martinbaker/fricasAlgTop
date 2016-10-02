@@ -81,13 +81,32 @@ Then G*H = < Sg,Sh | Rg,Rh,Rp >
 
 where:
 G*H is the direct product of G and H.
-Rp is a set of relations specifying that each element of Sg commutes
+Rp is a set of relations specifying that each element of Sg anti-commutes
 with each element of Sh.
 See:
 \url{https://en.wikipedia.org/wiki/Direct_product_of_groups}
 
 This assumes that Sg and Sh are disjoint. In order to assure this the
 generators will be renumbered before doing the product.
+
+\section{Subgroups}
+
+We can generate a subgroup by either removing a generator or
+adding a rule. We have functions to create subgroups in either
+of these ways.
+
+Removing a generator is an example of a surjective mapping
+(epimorphism) on the group. It is easy to work with functions
+between finitely presented groups, all we have to do is map
+the generators and check that the relations still equal 1.
+
+It would be tempting to combine removing generators and
+adding rules by having a quotient function. However this
+would only work if the generators and relations were named
+to correspond correctly.
+
+Note sure how to implement general quotient function?
+
 \section{Simplify Finitely Presented Groups}
 
 There may not be a simplest form but it is possible to do some
@@ -202,7 +221,7 @@ which is in the algebraictopology.spad file here:
 ++ Basic Operations:
 ++ Related packages:
 ++ Related categories:
-++ Related Domains:
+++ Related Domains: PermutationGroup
 ++ Also See:
 ++ AMS Classifications:
 ++ Keywords:
@@ -237,6 +256,10 @@ GroupPresentation() : Exports == Impl where
       ++ they correspond to the appropriate entries in the relations.
       ++ Therefore we can refactor the generators without changing the
       ++ group represented.
+    subgroup : (a : %, remgen : List(NNI)) -> %
+      ++ take subgroup by removing generators specified by remgen
+    subgroup : (a : %, addrel : List(List(Integer))) -> %
+      ++ take subgroup by adding relations specified by addrel
     directProduct : (a : %, b : %) -> %
       ++ directProduct of two groups
     cyclicGroup : (n : PI) -> %
@@ -577,41 +600,56 @@ GroupPresentation() : Exports == Impl where
        
    -- local function used by directProduct to offset indexes
    offsetIndexes(a : %, offset : NNI) : % ==
-     ga : List(NNI) := entries(a.gens)
-     ra : List(List(Integer)) := a.rels
-     gb := [x+offset for x in ga]
-     rb := [[(if y>0 then y+offset else y-offset) for y in z] for z in ra]
-     groupPresentation(gb, rb)
+       ga : List(NNI) := entries(a.gens)
+       ra : List(List(Integer)) := a.rels
+       gb := [x+offset for x in ga]
+       rb := [[(if y>0 then y+offset else y-offset) for y in z] for z in ra]
+       groupPresentation(gb, rb)
+
+   -- take subgroup by removing generators specified by remgen
+   subgroup(a : %, remgen : List(NNI)) : % ==
+       gens1 : PrimitiveArray(NNI) := a.gens
+       rels1 : List(List(Integer)) := a.rels
+       for toBeRemoved in remgen repeat
+           gens1 := removeGen(gens1, toBeRemoved)
+           rels1 := removeGen2(rels1, toBeRemoved)
+       simplify(groupPresentation(entries(gens1), rels1))
+
+   -- take subgroup by adding relations specified by addrel
+   subgroup(a : %, addrel : List(List(Integer))) : % ==
+       gens1 : List(NNI) := entries(a.gens)
+       rels1 : List(List(Integer)) := a.rels
+       simplify(groupPresentation(entries(gens1), concat(rels1,addrel)))
 
    -- directProduct of two groups
    directProduct(a : %, b : %) : % ==
-     a2 : % := refactor(a)
-     ga : List(NNI) := entries(a2.gens)
-     ra : List(List(Integer)) := a2.rels
-     sa : NNI := #ga
-     b2 : % := offsetIndexes(refactor(b),sa)
-     gb : List(NNI) := entries(b2.gens)
-     rb : List(List(Integer)) := b2.rels
-     rc : List(List(Integer)) := []
-     for gax in ga repeat
-       for gbx in gb repeat
-         gcx : List(Integer) := [gax::Integer,gbx::Integer,gax::Integer,gbx::Integer]
-         rc := concat(rc,gcx)
-     groupPresentation(concat(entries(ga),gb),concat([ra,rb,rc]))
+       a2 : % := refactor(a)
+       ga : List(NNI) := entries(a2.gens)
+       ra : List(List(Integer)) := a2.rels
+       sa : NNI := #ga
+       b2 : % := offsetIndexes(refactor(b),sa)
+       gb : List(NNI) := entries(b2.gens)
+       rb : List(List(Integer)) := b2.rels
+       rc : List(List(Integer)) := []
+       for gax in ga repeat
+           for gbx in gb repeat
+               gcx : List(Integer) := [gax::Integer,gbx::Integer,gax::Integer,gbx::Integer]
+               rc := concat(rc,gcx)
+       groupPresentation(concat(entries(ga),gb),concat([ra,rb,rc]))
 
    -- cyclicGroup(n) constructs the cyclic group of order n acting
    -- on the integers 1, ..., n.
    cyclicGroup(n : PI) : % ==
-     ga : List(NNI) := [1]
-     ra : List(List(Integer)) := [[1 for x in 1..(n pretend Integer)]]
-     groupPresentation(ga,ra)
+       ga : List(NNI) := [1]
+       ra : List(List(Integer)) := [[1 for x in 1..(n pretend Integer)]]
+       groupPresentation(ga,ra)
 
    -- dihedralGroup(n) constructs the dihedral group of order 2n
    -- acting on integers 1, ..., N.
    dihedralGroup(n : PI) : % ==
-     c1 : % := cyclicGroup(n)
-     c2 : % := cyclicGroup(2)
-     directProduct(c1,c2)
+       c1 : % := cyclicGroup(n)
+       c2 : % := cyclicGroup(2)
+       directProduct(c1,c2)
 
    -- output
    coerce(s : %) : OutputForm ==
