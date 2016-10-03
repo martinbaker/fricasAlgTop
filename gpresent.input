@@ -1,0 +1,9 @@
+)set break resume
+)expose UnittestCount UnittestAux Unittest
+
+testsuite "gpresent"
+
+testcase "simplification - remove one generator"
+triv := groupPresentation([],[])
+t1 := simplify(groupPresentation([1],[[1]]))
+testEquals("triv", "t1")
