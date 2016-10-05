@@ -92,7 +92,7 @@ generators will be renumbered before doing the product.
 \section{Subgroups}
 
 We can generate a subgroup by either removing a generator or
-adding a rule. We have functions to create subgroups in either
+adding a relation. We have functions to create subgroups in either
 of these ways.
 
 Removing a generator is an example of a surjective mapping
@@ -101,7 +101,7 @@ between finitely presented groups, all we have to do is map
 the generators and check that the relations still equal 1.
 
 It would be tempting to combine removing generators and
-adding rules by having a quotient function. However this
+adding relations by having a quotient function. However this
 would only work if the generators and relations were named
 to correspond correctly.
 
@@ -119,14 +119,14 @@ back to itself).
 
 For example:
 \begin{itemize}
-\item remove all zero terms in rules
-\item if a rule consists of a single generator then remove
+\item remove all zero terms in relations
+\item if a relation consists of a single generator then remove
   that generator
-\item if a rule consists of a pair of generators then make
+\item if a relation consists of a pair of generators then make
   the second generator the inverse of the first
 \item if a generator is adjacent to its inverse then cancel
   them out.
-\item remove duplicate rules.
+\item remove duplicate relations.
 \end{itemize}
 
 These automorphisms were studied and categorised by Tietze
@@ -153,7 +153,7 @@ in T2 and T4.
 T2 allows us to remove a relation but not generators. This
 happens when a relation is redundant, that is it contains no
 additional information than is already contained in the
-other rules.
+other relations.
 
 This happens, for example, where:
 
@@ -161,7 +161,7 @@ One relation is a multiple of another - In this case we can
 remove the highest multiple but not the lowest.
 
 One relation is the inverse of another - In this case we can
-remove any one, but not both of these rules.
+remove any one, but not both.
 
 We can also simplify relations, for example, where an element
 and its inverse are next to each other they can be
@@ -187,7 +187,7 @@ does the following:
 
 If a generator is contained in exactly 2 relations then we may be
 able to substitute one relation in another and remove that generator.
-If, in at least one of these rules, the generator is contained
+If, in at least one of these relations, the generator is contained
 only once then we can move it to one side of the equation and
 substitute it in the other rrelation.
 
@@ -607,55 +607,54 @@ GroupPresentation() : Exports == Impl where
    invertRelation(relationIn : List(Integer)) : List(Integer) ==
        relationOut := []$List(Integer)
        for ele in relationIn repeat
-           ruleOut := concat(-ele, relationOut)
+           relationOut := concat(-ele, relationOut)
        relationOut
 
    -- This is a local function used by simplify.
-   -- If a rule contains more inverted elements that non-inverted
+   -- If a relation contains more inverted elements that non-inverted
    -- elements then it is easier to read if we invert all the terms.
    TTMinimiseInverses(s : %, trace : Boolean) : % ==
        gens1 : PrimitiveArray(NNI) := s.gens
        rels1 : List(List(Integer)) := s.rels
        rels2 := []$List(List(Integer))
-       for rule in rels1 repeat
+       for rel in rels1 repeat
            numInverts : NNI := 0
            numNonInverts : NNI := 0
-           for ele in rule repeat
+           for ele in rel repeat
                if ele < 0 then
                    numInverts := numInverts + 1
                else
                    numNonInverts := numNonInverts + 1
            if numInverts > numNonInverts then
-               rule2 := invertRelation(rule)
-               rels2 := concat(rels2, rule2)
+               rels2 := concat(rels2, invertRelation(rel))
            else
-               rels2 := concat(rels2, rule)
+               rels2 := concat(rels2, rel)
        [gens1, rels2]
 
    -- This is a local function used by TTSubstitute.
    -- Counts the number of times a generator (or its inverse) occurs
-   -- in a rule.
-   generatorOccurrences(rule : List(Integer),gen : NNI) : NNI ==
+   -- in a relation.
+   generatorOccurrences(rel : List(Integer),gen : NNI) : NNI ==
        res : NNI := 0
-       for g in rule repeat
+       for g in rel repeat
            if g = gen then res := res + 1
            if gen > 0 and g = -gen then res := res + 1
        res
 
-   -- local function to remove rules containing given generator
-   removeRules(rels1 : List(List(Integer)), val : NNI) : List(List(Integer)) ==
+   -- local function to remove relations containing given generator
+   removeRelations(rels1 : List(List(Integer)), val : NNI) : List(List(Integer)) ==
        res : List(List(Integer)) := []$List(List(Integer))
-       for rule in rels1 repeat
-           if (not member?(val,rule)) and (not member?(-val,rule))then
-               res := concat(res,rule)
+       for rel in rels1 repeat
+           if (not member?(val,rel)) and (not member?(-val,rel))then
+               res := concat(res,rel)
        res
 
    -- This is a local function used by simplify.
-   -- If a generator is contained in exactly 2 rules then we may be
-   -- able to substitute one rule in another and remove that generator.
-   -- If, in at least one of these rules, the generator is contained
+   -- If a generator is contained in exactly 2 relations then we may be
+   -- able to substitute one relation in another and remove that generator.
+   -- If, in at least one of these relations, the generator is contained
    -- only once then we can move it to one side of the equation and
-   -- substitute it in the other rule.
+   -- substitute it in the other relation.
    TTSubstitute(s : %, trace : Boolean) : % ==
        gs : List(NNI) := entries(s.gens)
        rs : List(List(Integer)) := s.rels
@@ -668,14 +667,14 @@ GroupPresentation() : Exports == Impl where
            indexes : List(NNI) := indexesOfRelUsingGen(s, g)
            if #indexes = 2 and genToBeRemoved=0 then
                -- we have a candidate for substitution but, to be
-               -- sure generator must occur once in a rule
+               -- sure generator must occur once in a relation
                genToBeRemoved := g
                r1 := rs.(indexes.1)
                r2 := rs.(indexes.2)
                n1 := generatorOccurrences(r1,g)
                n2 := generatorOccurrences(r2,g)
                if n1 ~= 1::NNI then
-                   -- swap first and second rules
+                   -- swap first and second relations
                    r3 : List(Integer) := r1 ; n3 : NNI := n1
                    r1 := r2 ; n1 := n2
                    r2 := r3 ; n2 := n3
@@ -712,19 +711,19 @@ GroupPresentation() : Exports == Impl where
            print("we will substitute " << outputRel(replacement) << _
                  " for " << outputGen(genToBeRemoved) << _
                  " in " << outputRel(r2))
-       newRel : List(Integer) := [() for x in r2]
+       newRel : List(Integer) := []
        for x in r2 repeat
-           if x=abs(genToBeRemoved)
-             then newRel := concat(newRel,replacement)
-             else
+           if abs(x)=abs(genToBeRemoved)
+             then
                  if genInverted
-                     then newRel := concat(newRel,-x)
-                     else newRel := concat(newRel,x)
+                     then newRel := concat(newRel,invertRelation(replacement))
+                     else newRel := concat(newRel,replacement)
+             else newRel := concat(newRel,x)
        if trace then print("newRel=" << outputRel(newRel))
        gens1 : PrimitiveArray(NNI) := s.gens
        rels1 : List(List(Integer)) := s.rels
        gens1 := removeGen(gens1, genToBeRemoved)
-       rels1 := removeRules(rels1, genToBeRemoved)
+       rels1 := removeRelations(rels1, genToBeRemoved)
        rels1 := concat(rels1,newRel)
        if trace then print("gens=" << outputGenList(entries(gens1)) << " rels=" << outputRelList(rels1))
        [gens1, rels1]
@@ -734,8 +733,8 @@ GroupPresentation() : Exports == Impl where
    -- is simpler than another but this procedure is used only in specific
    -- circumstances, that is where we have attempted to simplify the
    -- presentation and we want to test if it is actually simpler.
-   -- We do this by testing if the number of generators or rules has
-   -- reduced or if the complexity of the rules has reduced.
+   -- We do this by testing if the number of generators or relations has
+   -- reduced or if the complexity of the relations has reduced.
    -- This is a local function used by simplify.
    isSimpler?(a : %, b : %) : Boolean ==
        gensa : PrimitiveArray(NNI) := a.gens
@@ -744,13 +743,13 @@ GroupPresentation() : Exports == Impl where
        relsb : List(List(Integer)) := b.rels
        if #gensa < #gensb then return true
        if #relsa < #relsb then return true
-       ruleCompleityA : NNI := 0
-       for rule in relsa repeat
-           ruleCompleityA := ruleCompleityA + #rule
-       ruleCompleityB : NNI := 0
-       for rule in relsb repeat
-           ruleCompleityB := ruleCompleityB + #rule
-       if ruleCompleityA < ruleCompleityB then return true
+       relationCompleityA : NNI := 0
+       for rel in relsa repeat
+           relationCompleityA := relationCompleityA + #rel
+       relationCompleityB : NNI := 0
+       for rel in relsb repeat
+           relationCompleityB := relationCompleityB + #rel
+       if relationCompleityA < relationCompleityB then return true
        false
 
    simplify(s : %) : % ==
@@ -758,12 +757,13 @@ GroupPresentation() : Exports == Impl where
 
    -- There may not be a simplest form but it is possible to
    -- do some simplifications as follows:
-   -- 1) remove all zero terms in rules
-   -- 2) if a rule consists of a single generator then remove that generator
-   -- 3) if a rule consists of a pair of generators then make the
+   -- 1) remove all zero terms in relations
+   -- 2) if a relation consists of a single generator then remove that generator
+   -- 3) if a relation consists of a pair of generators then make the
    --    second generator the inverse of the first
    -- 4) if a generator is adjacent to its inverse then cancel them out.
-   -- 5) remove duplicate rules
+   -- 5) remove duplicate relations
+   -- 6) Substitute one relation in another
    simplify(s : %, trace : Boolean) : % ==
        if trace then
            print(message("before simplification :=") << s)
