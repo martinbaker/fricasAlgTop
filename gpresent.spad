@@ -151,24 +151,24 @@ in T2 and T4.
 \subsection{T2}
 
 T2 allows us to remove a relation but not generators. This
-happens when a rule is redundant, that is it contains no
+happens when a relation is redundant, that is it contains no
 additional information than is already contained in the
 other rules.
 
 This happens, for example, where:
 
-One rule is a multiple of another - In this case we can
+One relation is a multiple of another - In this case we can
 remove the highest multiple but not the lowest.
 
-One rule is the inverse of another - In this case we can
+One relation is the inverse of another - In this case we can
 remove any one, but not both of these rules.
 
-We can also simplify rules, for example, where an element
+We can also simplify relations, for example, where an element
 and its inverse are next to each other they can be
 cancelled out and removed.
 \subsection{T4}
 
-T4 allows us to remove a generator and corresponding rules.
+T4 allows us to remove a generator and corresponding relations.
 \subsection{Nielsen Transformations}
 
 The following transformations on a finitely generated free group
@@ -179,7 +179,58 @@ produce isomorphic groups.
 \item Cyclically permute A, B, ... to B, ..., A.
 \item Replace A with A^(-1)
 \item Replace A with A*B
+\item Substitute one relation in another
 \end{itemize}
+
+Most of these rules are self explanatory except substitute which
+does the following:
+
+If a generator is contained in exactly 2 relations then we may be
+able to substitute one relation in another and remove that generator.
+If, in at least one of these rules, the generator is contained
+only once then we can move it to one side of the equation and
+substitute it in the other rrelation.
+
+This is done by a local function TTSubstitute.
+
+Here is an example of its use from SimplicialComplex:
+
+(1) -> tS := torusSurface()$SimplicialComplexFactory
+
+     (1)
+           (1,2,3)
+           (2,3,5)
+           (2,4,5)
+           (2,4,7)
+           (1,2,6)
+           (2,6,7)
+           (3,4,6)
+           (3,5,6)
+           (3,4,7)
+           (1,3,7)
+           (1,4,5)
+           (1,4,6)
+           (5,6,7)
+           (1,5,7)
+               Type: FiniteSimplicialComplex(VertexSetAbstract)
+
+(2) -> fundamentalGroup(tS)
+
+     (2)  <o t w |   o*w*t,  o*t*w>
+                                        Type: GroupPresentation
+
+This needs to be further simplified,
+
+<o t w |   -o = w*t,  -o = t*w>
+
+Substituting for -o we have:
+
+w*t = t*w
+
+That is, two edges that commute.
+
+Moving everything to one side of the equation we have:
+t * w * -t * -w 
 
 \section{Testing and Validating this Code}
 
@@ -243,12 +294,14 @@ GroupPresentation() : Exports == Impl where
     simplify : (s : %) -> %
       ++ There may not be a simplest form but it is possible to
       ++ do some simplifications as follows:
-      ++ 1) remove all zero terms in rules
-      ++ 2) if a rule consists of a single generator then remove that generator
-      ++ 3) if a rule consists of a pair of generators then make the
-      ++    second generator the inverse of the first
+      ++ 1) Remove all zero terms in relations.
+      ++ 2) If a relation consists of a single generator then remove
+      ++    that generator.
+      ++ 3) If a relation consists of a pair of generators then make the
+      ++    second generator the inverse of the first.
       ++ 4) if a generator is adjacent to its inverse then cancel them out.
-      ++ 5) remove duplicate rules
+      ++ 5) Remove duplicate relations.
+      ++ 6) Substitute one relation in another.
     simplify : (s : %, trace : Boolean) -> %
       ++ simplify with option to trace
     refactor : (a : %) -> %
@@ -272,10 +325,14 @@ GroupPresentation() : Exports == Impl where
   Impl ==> add
 
    -- Representation holds the group as a set of generators and a set of
-   -- relations
+   -- relations.
    -- Each generator is a NNI
-   -- Each relation is a list of indexes to generators. Negative values
-   -- indicate inverse.
+   -- Each relation is a list of indexes to generators.
+   -- if index is positive it represents a generator output as an
+   -- alphabetic digit followed by number if required.
+   -- if index is zero it represents identity output as 'e'.
+   -- if index is negative it represents an inverse generator.
+
    Rep := Record(gens : PrimitiveArray(NNI), rels : List(List(Integer)))
 
    -- construct from generators and relations
@@ -283,7 +340,7 @@ GroupPresentation() : Exports == Impl where
        -- print("  groupPresentation construct (" << gens1 << ", "
        --       << rels1<< ")")
        g := construct(gens1)$PrimitiveArray(NNI)
-       -- remove empty rules since this simplifies equality function
+       -- remove empty relations since this simplifies equality function
        --print("groupPresentation constuct : " << rels1)
        rels2 := []$List(List(Integer))
        for r in rels1 repeat
@@ -307,7 +364,7 @@ GroupPresentation() : Exports == Impl where
        rels1 := []$List(List(Integer))
        groupPresentation(gens1, rels1)
 
-   -- local function used by refactor to map a given generator in a rule
+   -- Local function used by refactor to map a given generator in a relation.
    mapGen(a : Integer, ms : GENMAP) : Integer ==
        for m  in ms repeat
            if abs(a) = m.OldGen then return m.NewGen
@@ -325,14 +382,14 @@ GroupPresentation() : Exports == Impl where
        for g in entries(a.gens) for gn in 1..(#(a.gens)) repeat
            gm : Record(OldGen : NNI, NewGen : NNI) := [g, gn]
            gms := concat(gms, gm)
-       -- now use this map to change elements of rules
+       -- now use this map to change elements of relations
        rels1 := []$List(List(Integer))
-       for rule in a.rels repeat
-           newRule : List(Integer) := empty()$List(Integer)
-           for ele in rule repeat
+       for rel in a.rels repeat
+           newRel : List(Integer) := empty()$List(Integer)
+           for ele in rel repeat
                newEle : Integer := mapGen(ele, gms)
-               newRule := concat(newRule, newEle)
-           rels1 := concat(rels1, newRule)
+               newRel := concat(newRel, newEle)
+           rels1 := concat(rels1, newRel)
        gens1 : List(NNI) := [gn for gn in 1..(#(a.gens))]
        groupPresentation(gens1, rels1)
 
@@ -357,29 +414,63 @@ GroupPresentation() : Exports == Impl where
        brs : List(List(Integer)) := entries(br.rels)
        set(ars)$Set(List(Integer)) = set(brs)$Set(List(Integer))
 
-   -- display generators as alphabetic digits
-   -- used by coerce to OutputForm
-   genName(i2 : Integer) : OutputForm ==
+   -- Display generators as alphabetic digits
+   -- Local function used by coerce to OutputForm and other functions.
+   -- if i2 is positive it represents a generator shown as an
+   -- alphabetic digit followed by number if required.
+   -- if i2 is zero it represents identity shown as 'e'.
+   -- if i2 is negative it represents an inverse generator.
+   -- The notation uses '-' to indicate an inverse generator (I know
+   -- this is an abuse of notation, because the group is not
+   -- necessarily Abelian). I don't like the alternatives,
+   -- '-1' exponent uses too much space and upper case for inverses
+   -- may not be clear to people who don’t read documentation.
+   outputGen(i2 : Integer) : OutputForm ==
        (suffix, i) := divide(abs(i2), 25)
-       letters : String := "abcdfghijklmnopqrstuvwxyz"
+       letters : String := "eabcdfghijklmnopqrstuvwxyz"
        n : OutputForm := (letters(i + 1))::OutputForm
-       -- print("  groupPresentation genName(" << i2 <<
+       -- print("  groupPresentation outputGen(" << i2 <<
        --       ") gives " << n)
-       if suffix > 0 then return hconcat(n, outputForm(suffix + 1))
+       if suffix > 0 then n := hconcat(n, outputForm(suffix + 1))
+       if i2 < 0 then return hconcat(message"-", n)
        n
 
-   -- display a rule as alphabetic digits
-   genName2(i2 : List(List(Integer))) : OutputForm ==
-       rels1 : List(OutputForm) := empty()$List(OutputForm)
-       for r in i2 repeat
-           eleout : OutputForm := outputForm(" ")
-           seperator : OutputForm := outputForm(" ")
-           for ele in r repeat
-               newterm : OutputForm := genName(ele)
-               eleout := hconcat([eleout, seperator, newterm])$OutputForm
-               seperator := outputForm("*")
-           rels1 := concat(rels1, eleout)
-       blankSeparate(rels1)
+   -- display a relation using alphabetic digits
+   outputRel(r : List(Integer)) : OutputForm ==
+       eleout : OutputForm := message("")
+       seperator : OutputForm := message(" ")
+       for ele in r repeat
+           newterm : OutputForm := outputGen(ele)
+           eleout := hconcat([eleout, seperator, newterm])$OutputForm
+           seperator := message("*")
+       eleout
+
+   -- display a list of relations using alphabetic digits
+   outputRelList(i2 : List(List(Integer))) : OutputForm ==
+       rels1 : List(OutputForm) := []$List(OutputForm)
+       for r in i2 repeat 
+           rels1 := concat(rels1,outputRel(r))
+       if #rels1 > 0 then return commaSeparate(rels1)
+       message(" ")
+
+   -- display a list of generators using alphabetic digits
+   outputGenList(ps : List(NNI)) : OutputForm ==
+       gens1 : List(OutputForm) := []$List(OutputForm)
+       for p in ps repeat
+           gens1 := concat(gens1, outputGen(p::Integer))
+       if #gens1 > 0 then return blankSeparate(gens1)
+       message(" ")
+
+   -- local function to return indexes to each relation containing a given
+   -- generator.
+   indexesOfRelUsingGen(s : %, gen : NNI) : List(NNI) ==
+       res : List(NNI) := []
+       r : List(List(Integer)) := s.rels
+       for rel in r for reln in 1..(#r) repeat
+           if member?(gen::Integer,rel) then res := concat(res,reln)
+           if gen > 0 and member?(-(gen::Integer),rel)
+               then res := concat(res,reln)
+       res
 
    -- local function to remove generator 'val' from generators
    removeGen(gens1 : PrimitiveArray(NNI), val : NNI) : PrimitiveArray(NNI) ==
@@ -387,7 +478,7 @@ GroupPresentation() : Exports == Impl where
 
    -- local function to remove generator 'val' from relations
    removeGen2(rels1 : List(List(Integer)), val : NNI) : List(List(Integer)) ==
-       [remove(-val, remove(val::Integer, rule)) for rule in rels1]
+       [remove(-val, remove(val::Integer, rel)) for rel in rels1]
 
    -- local function to replace generator 'val1' with 'val2'
    -- in relations
@@ -396,72 +487,72 @@ GroupPresentation() : Exports == Impl where
        --print("  groupPresentation replaceGen=" << rels1 << _
        --      " val1=" << val1 << " val2=" << val2)
        rels2 := []$List(List(Integer))
-       for rule in rels1 repeat
-           rule2 := []$List(Integer)
-           for ele in rule repeat
+       for rel in rels1 repeat
+           rel2 := []$List(Integer)
+           for ele in rel repeat
                e : Integer := abs(ele)
                if e = val1 then e := val2
                if ele < 0 then e := -e
-               rule2 := concat(rule2, e)
-           rels2 := concat(rels2, rule2)
+               rel2 := concat(rel2, e)
+           rels2 := concat(rels2, rel2)
        rels2
 
    -- Tietze Transformation to remove a generator that is equal to
-   -- the identity element. That is there is a rule containing only one
+   -- the identity element. That is there is a relation containing only one
    -- generator.
-   -- This procedure searches for a single element rule, if found, it
+   -- This procedure searches for a single element relation, if found, it
    -- removes the corresponding generator and also removes it from
-   -- any rules containing it.
+   -- any relations containing it.
    -- This procedure only removes one generator, if there are several
-   -- such rules then this procedure needs to be called several times.
+   -- such relations then this procedure needs to be called several times.
    -- This is a local function used by simplify.
    TTRemoveGeneratorIfIdentity(s : %, trace : Boolean) : % ==
        gens1 : PrimitiveArray(NNI) := s.gens
        rels1 : List(List(Integer)) := s.rels
        toBeRemoved : NNI := 0
-       for rule in rels1 repeat
-           if #rule = 1 and toBeRemoved = 0 then
-               toBeRemoved := abs(first(rule)) pretend NNI
+       for rel in rels1 repeat
+           if #rel = 1 and toBeRemoved = 0 then
+               toBeRemoved := abs(first(rel)) pretend NNI
        if toBeRemoved = 0 then return s
        if trace then
            print hconcat([message("simplify: generator '"), _
-               genName(toBeRemoved), _
+               outputGen(toBeRemoved), _
                message("' is identity so remove it")])
        gens1 := removeGen(gens1, toBeRemoved)
        rels1 := removeGen2(rels1, toBeRemoved)
-       if trace then print genName2(rels1)
+       if trace then print outputRelList(rels1)
        [gens1, rels1]
 
    -- Tietze Transformation to rename a generator.
-   -- If a rule consists of a pair of generators then make the
+   -- If a relation consists of a pair of generators then make the
    -- second generator the inverse of the first.
-   -- This procedure searches for a two element rule, if found, it
+   -- This procedure searches for a two element relation, if found, it
    -- replaces the second element with the inverse of the first.
    -- This procedure only replaces one generator, if there are several
-   -- such rules then this procedure needs to be called several times.
+   -- such relations then this procedure needs to be called several times.
    -- This is a local function used by simplify.
    TTRenameGenerator(s : %, trace : Boolean) : % ==
        gens1 : PrimitiveArray(NNI) := s.gens
        rels1 : List(List(Integer)) := s.rels
        replaceFrom : NNI := 0
        replaceTo : Integer := 0
-       for rule in rels1 repeat
-           if #rule = 2 and replaceFrom=0 then
-               replaceTo := second(rule)
-               replaceFrom := abs(first(rule)) pretend NNI
-               if first(rule) >0 then replaceTo := -replaceTo
+       for rel in rels1 repeat
+           if #rel = 2 and replaceFrom=0 then
+               replaceTo := second(rel)
+               replaceFrom := abs(first(rel)) pretend NNI
+               if first(rel) >0 then replaceTo := -replaceTo
                -- don't replace an element with itself or its inverse
                if replaceFrom = abs(replaceTo) then replaceFrom := 0
        if replaceFrom=0 then return s
        if trace then
            print hconcat([message("simplify: generator '"), _
-               genName(replaceFrom), _
+               outputGen(replaceFrom), _
                message("' is replaced by '"), _
-               genName(replaceTo), _
+               outputGen(replaceTo), _
                message("'")])
        gens1 := removeGen(gens1, replaceFrom)
        rels1 := replaceGen(rels1, replaceFrom, replaceTo)
-       if trace then print genName2(rels1)
+       if trace then print outputRelList(rels1)
        [gens1, rels1]
 
    -- This is a local function used by simplify.
@@ -469,10 +560,10 @@ GroupPresentation() : Exports == Impl where
        gens1 : PrimitiveArray(NNI) := s.gens
        rels1 : List(List(Integer)) := s.rels
        rels2 : List(List(Integer)) := empty()$List(List(Integer))
-       for rule in rels1 repeat
-           --print("  groupPresentation simplify rule=" << rule)
-           if not empty?(rule) then
-               rels2 := concat(rels2, rule)
+       for rel in rels1 repeat
+           --print("  groupPresentation simplify rel=" << rel)
+           if not empty?(rel) then
+               rels2 := concat(rels2, rel)
        [gens1, rels2]
 
    -- This is a local function used by simplify.
@@ -487,34 +578,41 @@ GroupPresentation() : Exports == Impl where
    TTRemoveEleTimesInverse(s : %, trace : Boolean) : % ==
        gens1 : PrimitiveArray(NNI) := s.gens
        rels1 : List(List(Integer)) := s.rels
-       --print("TTRemoveEleTimesInverse rules in =" << rels1)
+       --print("TTRemoveEleTimesInverse relations in =" << rels1)
        rels2 : List(List(Integer)) := empty()$List(List(Integer))
        changed : Boolean := false
-       for rule in rels1 repeat
-           --print("TTRemoveEleTimesInverse rule=" << rule)
-           rule2 : List(Integer) := empty()$List(Integer)
+       for rel in rels1 repeat
+           --print("TTRemoveEleTimesInverse rel=" << rel)
+           rel2 : List(Integer) := empty()$List(Integer)
            lastele : Integer := 0
-           for ele in rule repeat
+           for ele in rel repeat
                if abs(ele) = abs(lastele) and sign(ele) ~= sign(lastele) then
                    if trace then print hconcat([_
                        message("simplify: generator '"), _
-                       genName(ele), _
+                       outputGen(ele), _
                        message("' is adjacent to its inverse")])
                    changed := true
                    lastele := 0
                else
-                   if lastele ~= 0 then rule2 := concat(rule2, lastele)
+                   if lastele ~= 0 then rel2 := concat(rel2, lastele)
                    lastele := ele
-           if lastele ~= 0 then rule2 := concat(rule2, lastele)
-           if not empty?(rule2) then rels2 := concat(rels2, rule2)
-       if trace and changed then print genName2(rels2)
+           if lastele ~= 0 then rel2 := concat(rel2, lastele)
+           if not empty?(rel2) then rels2 := concat(rels2, rel2)
+       if trace and changed then print outputRelList(rels2)
        [gens1, rels2]
+
+   -- local function to invert relation. Used by TTSubstitute and TTMinimiseInverses
+   -- We invert each element and then reverse the order.
+   -- A bit like De Morgan's laws
+   invertRelation(relationIn : List(Integer)) : List(Integer) ==
+       relationOut := []$List(Integer)
+       for ele in relationIn repeat
+           ruleOut := concat(-ele, relationOut)
+       relationOut
 
    -- This is a local function used by simplify.
    -- If a rule contains more inverted elements that non-inverted
-   -- elements then it is easier to read if we invert all the terms
-   -- we must then reverse the order.
-   -- A bit like De Morgan's laws
+   -- elements then it is easier to read if we invert all the terms.
    TTMinimiseInverses(s : %, trace : Boolean) : % ==
        gens1 : PrimitiveArray(NNI) := s.gens
        rels1 : List(List(Integer)) := s.rels
@@ -528,13 +626,108 @@ GroupPresentation() : Exports == Impl where
                else
                    numNonInverts := numNonInverts + 1
            if numInverts > numNonInverts then
-               rule2 := []$List(Integer)
-               for ele in rule repeat
-                   rule2 := concat(-ele, rule2)
+               rule2 := invertRelation(rule)
                rels2 := concat(rels2, rule2)
            else
                rels2 := concat(rels2, rule)
        [gens1, rels2]
+
+   -- This is a local function used by TTSubstitute.
+   -- Counts the number of times a generator (or its inverse) occurs
+   -- in a rule.
+   generatorOccurrences(rule : List(Integer),gen : NNI) : NNI ==
+       res : NNI := 0
+       for g in rule repeat
+           if g = gen then res := res + 1
+           if gen > 0 and g = -gen then res := res + 1
+       res
+
+   -- local function to remove rules containing given generator
+   removeRules(rels1 : List(List(Integer)), val : NNI) : List(List(Integer)) ==
+       res : List(List(Integer)) := []$List(List(Integer))
+       for rule in rels1 repeat
+           if (not member?(val,rule)) and (not member?(-val,rule))then
+               res := concat(res,rule)
+       res
+
+   -- This is a local function used by simplify.
+   -- If a generator is contained in exactly 2 rules then we may be
+   -- able to substitute one rule in another and remove that generator.
+   -- If, in at least one of these rules, the generator is contained
+   -- only once then we can move it to one side of the equation and
+   -- substitute it in the other rule.
+   TTSubstitute(s : %, trace : Boolean) : % ==
+       gs : List(NNI) := entries(s.gens)
+       rs : List(List(Integer)) := s.rels
+       r1 : List(Integer) := []
+       r2 : List(Integer) := []
+       n1 : NNI := 0
+       n2 : NNI := 0
+       genToBeRemoved : NNI := 0
+       for g in gs repeat
+           indexes : List(NNI) := indexesOfRelUsingGen(s, g)
+           if #indexes = 2 and genToBeRemoved=0 then
+               -- we have a candidate for substitution but, to be
+               -- sure generator must occur once in a rule
+               genToBeRemoved := g
+               r1 := rs.(indexes.1)
+               r2 := rs.(indexes.2)
+               n1 := generatorOccurrences(r1,g)
+               n2 := generatorOccurrences(r2,g)
+               if n1 ~= 1::NNI then
+                   -- swap first and second rules
+                   r3 : List(Integer) := r1 ; n3 : NNI := n1
+                   r1 := r2 ; n1 := n2
+                   r2 := r3 ; n2 := n3
+               if n1 ~= 1::NNI then
+                   genToBeRemoved := 0
+       if n1 ~= 1::NNI then return s
+       -- If we have got to this point then we know a substitution
+       -- is possible.
+       if trace then
+           print("simplify: TTSubstitute (" << s << ")")
+           print("genToBeRemoved=" << outputGen(genToBeRemoved) << _
+                 " r1=" << outputRel(r1) <<" r2=" << outputRel(r2))
+           print("n1=" << n1 <<" n2=" << n2)
+       restr : List(Integer) := r1
+       prer  : List(Integer) := []
+       found : Boolean := false
+       genInverted : Boolean := false
+       while (not empty?(restr)) and (not found)repeat
+           x : Integer := first(restr)
+           restr := rest(restr)
+           if x=genToBeRemoved or x= -genToBeRemoved
+               then
+                   found := true
+                   if x<0 then genInverted := true
+               else prer := concat(prer,x)
+       postr  : List(Integer) := []
+       while not empty?(restr) repeat
+           x : Integer := first(restr)
+           restr := rest(restr)
+           postr := concat(postr,x)
+       replacement := concat(invertRelation(prer),invertRelation(postr))
+       -- now substitute replacement for genToBeRemoved in r2
+       if trace then
+           print("we will substitute " << outputRel(replacement) << _
+                 " for " << outputGen(genToBeRemoved) << _
+                 " in " << outputRel(r2))
+       newRel : List(Integer) := [() for x in r2]
+       for x in r2 repeat
+           if x=abs(genToBeRemoved)
+             then newRel := concat(newRel,replacement)
+             else
+                 if genInverted
+                     then newRel := concat(newRel,-x)
+                     else newRel := concat(newRel,x)
+       if trace then print("newRel=" << outputRel(newRel))
+       gens1 : PrimitiveArray(NNI) := s.gens
+       rels1 : List(List(Integer)) := s.rels
+       gens1 := removeGen(gens1, genToBeRemoved)
+       rels1 := removeRules(rels1, genToBeRemoved)
+       rels1 := concat(rels1,newRel)
+       if trace then print("gens=" << outputGenList(entries(gens1)) << " rels=" << outputRelList(rels1))
+       [gens1, rels1]
 
    -- true if 'a' is simpler than 'b'.
    -- There may not be an absolute measure of whether one presentation
@@ -591,6 +784,12 @@ GroupPresentation() : Exports == Impl where
            repInner := true
            while repInner repeat
                res := TTRemoveEleTimesInverse(res, trace)
+               repInner := isSimpler?(res, lastpassInner)
+               lastpassInner := res
+           lastpassInner := res
+           repInner := true
+           while repInner repeat
+               res := TTSubstitute(res, trace)
                repInner := isSimpler?(res, lastpassInner)
                lastpassInner := res
            res := TTMinimiseInverses(res, trace)
@@ -654,25 +853,9 @@ GroupPresentation() : Exports == Impl where
    -- output
    coerce(s : %) : OutputForm ==
        ps : List(NNI) := parts((s.gens) pretend PrimitiveArray(NNI))
-       gens1 : List(OutputForm) := empty()$List(OutputForm)
-       for p in ps repeat
-           gens1 := concat(gens1, genName(p::Integer))
-       --print("output gens : " << gens1)
+       g : OutputForm := outputGenList(ps)
        rs : List(List(Integer)) := s.rels
-       rels1 : List(OutputForm) := empty()$List(OutputForm)
-       for r in rs repeat
-           eleout : OutputForm := message(" ")
-           seperator : OutputForm := message(" ")
-           for ele in r repeat
-               newterm : OutputForm := genName(ele)
-               eleout := hconcat([eleout, seperator, newterm])$OutputForm
-               seperator := message("*")
-           rels1 := concat(rels1, eleout)
-       --print("output rules : " << rels1)
-       g : OutputForm := message(" ")
-       if #gens1 > 0 then g := blankSeparate(gens1)
-       r : OutputForm := message(" ")
-       if #rels1 > 0 then r := commaSeparate(rels1)
+       r : OutputForm := outputRelList(rs)
        hconcat([message("<"), g, message(" | "), r, message(">")])
 
 )if false
