@@ -766,37 +766,31 @@ GroupPresentation() : Exports == Impl where
    -- 6) Substitute one relation in another
    simplify(s : %, trace : Boolean) : % ==
        if trace then
-           print(message("before simplification :=") << s)
+           print(message("simplify(") << s << message(")"))
        res : % := s
        lastpass : % := s
-       rep : Boolean := true
-       while rep repeat
-           res := TTRemoveEmpty(res, trace)
-           res := TTRemoveZero(res, trace)
-           lastpassInner : % := res
-           repInner : Boolean := true
-           while repInner repeat
-               res := TTRemoveGeneratorIfIdentity(res, trace)
-               repInner := isSimpler?(res, lastpassInner)
-               lastpassInner := res
-           res := TTRenameGenerator(res, trace)
-           lastpassInner := res
-           repInner := true
-           while repInner repeat
-               res := TTRemoveEleTimesInverse(res, trace)
-               repInner := isSimpler?(res, lastpassInner)
-               lastpassInner := res
-           lastpassInner := res
-           repInner := true
-           while repInner repeat
-               res := TTSubstitute(res, trace)
-               repInner := isSimpler?(res, lastpassInner)
-               lastpassInner := res
-           res := TTMinimiseInverses(res, trace)
-           rep := isSimpler?(res, lastpass)
+       level : NNI := 0
+       loopBreaker : NNI := 0
+       while loopBreaker < 10000 repeat
+           loopBreaker := loopBreaker + 1
+           if level=0 then res := TTRemoveEmpty(res, trace)
+           if level=1 then res := TTRemoveZero(res, trace)
+           if level=2 then res := TTRemoveGeneratorIfIdentity(res, trace)
+           if level=3 then res := TTRenameGenerator(res, trace)
+           if level=4 then res := TTRemoveEleTimesInverse(res, trace)
+           if level=5 then res := TTSubstitute(res, trace)
+           if level=6 then return TTMinimiseInverses(res, trace)
+           if isSimpler?(res, lastpass)
+               then level := 0
+               else level := level + 1
+           if trace then
+               print(message(" level=") << level << _
+                     message(" loop=") << loopBreaker << _
+                     message(" res=") << res)
            lastpass := res
+       print(message("simplify excessive time - loop suspected") << s)
        res
-       
+
    -- local function used by directProduct to offset indexes
    offsetIndexes(a : %, offset : NNI) : % ==
        ga : List(NNI) := entries(a.gens)
