@@ -39,6 +39,7 @@ PermutationGroup(S : SetCategory) : public == private where
              gpbase : L NNI, orbs : V REC, mp : L S, wd : L L NNI)
   REC3 ==> Record(elt : V NNI, lst : L NNI)
   REC4 ==> Record(bool : B, lst : L NNI)
+  WORD ==> L Record(node : NNI, edge : NNI)
 
   public ==> SetCategory with
 
@@ -853,8 +854,8 @@ PermutationGroup(S : SetCategory) : public == private where
     -- Local function to construct a list of all elements.
     -- Each time we find an element we add it here.
     -- I don't like calling by reference because its not 'functional' and
-    -- it obscures the meaning but I did it to avoid functions that return
-    -- multiple values.
+    -- it obscures the meaning but I did it to avoid messy passing around of
+    -- return values.
     concatEleIfNew(allEleR : Reference L PERM S, newEle : PERM S) : L PERM S ==
         allEle : L PERM S := deref(allEleR)
         --print("concatEleIfNew allEle=" << allEle << " newEle=" << newEle)
@@ -864,6 +865,9 @@ PermutationGroup(S : SetCategory) : public == private where
         allEle
 
     -- local function to construct tree recursively until loop detected
+    -- I don't like calling by reference because its not 'functional' and
+    -- it obscures the meaning but I did it to avoid messy passing around of
+    -- return values.
     constructTree(gs : L PERM S,allEleR : Reference L PERM S, ele : PERM S, parent : Tree PERM S ,_
                  pathWord : L NNI, pathElements : L PERM S,loopBreaker : NNI) : Tree PERM S ==
         x<<y ==> hconcat(x::OutputForm, y::OutputForm)
@@ -871,49 +875,78 @@ PermutationGroup(S : SetCategory) : public == private where
         --print("constructTree gs=" << gs << " ele=" << ele << " parent=" << parent _
         --        << " pathWord=" << pathWord << " pathElements=" << pathElements)
         children : List Tree PERM S := []
+        -- Nodes in tree should either be leaf node or have branches for
+        -- every generator.
+        if member?(ele,pathElements) then
+          -- loop detected so this is a leaf node.
+          leaf: Tree PERM S:= tree(ele)
+          return leaf
+        -- not a leaf so generate child for each generator
         for g in gs for ng in 1..(#gs) repeat
           newEle : PERM S := ele*g
           concatEleIfNew(allEleR, newEle)
-          if not member?(newEle,pathElements) then
-            newPathWord:L NNI := concat(pathWord,ng)
-            newPathElements: L PERM S := concat(pathElements,newEle)
-            subTree: Tree PERM S:= constructTree(gs,allEleR, newEle, parent,_
-                                   newPathWord, newPathElements,loopBreaker+1)
-            children := concat(children,subTree)
+          newPathWord:L NNI := concat(pathWord,ng)
+          newPathElements: L PERM S := concat(pathElements,ele)
+          subTree: Tree PERM S:= constructTree(gs,allEleR, newEle, parent,_
+                                 newPathWord, newPathElements,loopBreaker+1)
+          children := concat(children,subTree)
         tree(ele,children)
 
     -- local function to map permutation tree to index tree.
-    mapTree(tr : Tree PERM S,allEle : L PERM S,word : L NNI) : Tree Record(index : NNI, path : L NNI) ==
-        WORD ==> Record(index : NNI, path : L NNI)
+    mapTree(tr : Tree PERM S,allEle : L PERM S,word : WORD) : Tree WORD ==
         if empty?(tr) then return empty()
         v : PERM S := value(tr)
         integ : Integer := position(v,allEle)
         if integ<0 then return empty()
         i : NNI := integ pretend NNI
-        w := [i,word]$Record(index : NNI, path : L NNI)
+        me : Record(node : NNI, edge : NNI) := [i,0]
+        w := concat(word,me)
         if leaf?(tr) then return tree(w)
         chas:List Tree PERM S := children(tr)
-        chbs:List Tree Record(index : NNI, path : L NNI) := []$(List Tree Record(index : NNI, path : L NNI))
+        chbs:List Tree WORD := []$(List Tree WORD)
         for cha in chas for chn in 1..(#chas)repeat
-          chb : Tree Record(index : NNI, path : L NNI) := mapTree(cha,allEle,concat(word,chn))
+          me := [i,chn]
+          chb : Tree WORD := mapTree(cha,allEle,concat(word,me))
           chbs := concat(chbs,chb)
         tree(w,chbs)
+
+    -- local function to map index tree to list of paths.
+    calculatePaths(tr : Tree WORD) : L WORD ==
+        x<<y ==> hconcat(x::OutputForm, y::OutputForm)
+        paths : L WORD := []$(L WORD)
+        if empty?(tr) then return paths
+        if leaf?(tr) then
+            w:WORD := value(tr)
+            --print("calculatePaths word=" << w)
+            return [w]
+        chs:List Tree WORD := children(tr)
+        for ch in chs repeat
+            newPaths : L WORD := calculatePaths(ch)
+            paths := concat(paths,newPaths)
+        paths
 
     -- construct a presentation
     groupPresentationIfCan(a:%) : Union(GroupPresentation,"failed") ==
         x<<y ==> hconcat(x::OutputForm, y::OutputForm)
         t:Tree PERM S := empty()
         gs : L PERM S := generators(a)
-        elementIndexR : Reference L PERM S := ref([])
+        -- elementIndex lists all permutations so we can refer to them by the
+        -- position in this list.
+        -- We start by preloading the list with identity and generators.
+        elementIndex : L PERM S := [1$(PERM S)]
+        elementIndexR : Reference L PERM S := ref(elementIndex)
+        for g in gs repeat
+            concatEleIfNew(elementIndexR,g)
         t := constructTree(gs,elementIndexR,1$(PERM S),t,[]$(L NNI),[]$(L PERM S),0)
         print("groupPresentationIfCan tree=" << t)
         elementIndex : L PERM S := deref(elementIndexR)
         print("groupPresentationIfCan elements=" << elementIndex)
         -- indexify element list.
-        emptyWord : L NNI := empty()$List(NNI)
-        itr:Tree Record(index : NNI, path : L NNI) := mapTree(t,elementIndex,emptyWord)
+        emptyWord : WORD := []$WORD
+        itr:Tree WORD := mapTree(t,elementIndex,emptyWord)
         print("groupPresentationIfCan itr=" << itr)
-        relators: L L NNI := []
+        relators: L WORD := calculatePaths(itr)
+        print("groupPresentationIfCan relators=" << relators)
         "failed"
 
 )abbrev package PGE PermutationGroupExamples
