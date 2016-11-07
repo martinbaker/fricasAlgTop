@@ -137,7 +137,7 @@ PermutationGroup(S : SetCategory) : public == private where
       ++ pointList(gp) should be local but conditional
     perm_to_vec : (L S, PERM S, NNI) -> V NNI
       ++ perm_to_vec(supp, p, degree) should be local but conditional
-    groupPresentationIfCan : (a:%) -> Union(GroupPresentation,"failed")
+    coerce : (a:%) -> GroupPresentation
       ++ construct a presentation
 
   private ==> add
@@ -925,8 +925,26 @@ PermutationGroup(S : SetCategory) : public == private where
             paths := concat(paths,newPaths)
         paths
 
+    -- local function to map paths to loops .
+    calculateLoops(paths : L WORD) : L L NNI ==
+        x<<y ==> hconcat(x::OutputForm, y::OutputForm)
+        loops : L L NNI := []
+        for p in paths repeat
+          if #p < 2 then break
+          lastNode : NNI := p.last.node
+          found : Boolean := false
+          loop : L NNI := []
+          for e in p repeat
+              node1 : NNI := e.node
+              edge1 : NNI := e.edge
+              if node1 = lastNode then found := true
+              if found and edge1 ~= 0 then
+                  loop := concat(loop,edge1)
+          loops := concat(loops,loop)
+        loops
+
     -- construct a presentation
-    groupPresentationIfCan(a:%) : Union(GroupPresentation,"failed") ==
+    coerce(a:%) : GroupPresentation ==
         x<<y ==> hconcat(x::OutputForm, y::OutputForm)
         t:Tree PERM S := empty()
         gs : L PERM S := generators(a)
@@ -938,16 +956,20 @@ PermutationGroup(S : SetCategory) : public == private where
         for g in gs repeat
             concatEleIfNew(elementIndexR,g)
         t := constructTree(gs,elementIndexR,1$(PERM S),t,[]$(L NNI),[]$(L PERM S),0)
-        print("groupPresentationIfCan tree=" << t)
+        --print(message "groupPresentation tree=" << t)
         elementIndex : L PERM S := deref(elementIndexR)
-        print("groupPresentationIfCan elements=" << elementIndex)
+        --print(message "groupPresentation elements=" << elementIndex)
         -- indexify element list.
         emptyWord : WORD := []$WORD
         itr:Tree WORD := mapTree(t,elementIndex,emptyWord)
-        print("groupPresentationIfCan itr=" << itr)
+        --print(message "groupPresentation itr=" << itr)
         relators: L WORD := calculatePaths(itr)
-        print("groupPresentationIfCan relators=" << relators)
-        "failed"
+        --print(message "groupPresentation relators=" << relators)
+        loops: L L NNI := calculateLoops(relators)
+        --print(message "groupPresentation loops=" << loops)
+        gens : List(NNI) := [x for x in 1..(#gs)]
+        rels : List(List(Integer)) := loops pretend List(List(Integer))
+        simplify(groupPresentation(gens,rels))
 
 )abbrev package PGE PermutationGroupExamples
 ++ Authors: M. Weller, G. Schneider, J. Grabmeier
