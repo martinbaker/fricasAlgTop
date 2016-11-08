@@ -49,7 +49,7 @@ an abuse of notation, because the group is not necessarily Abelian).
 \end{itemize}
 This convention is not ambiguous and I don't like the alternatives,
 '-1' exponent uses too much space and upper case alpha for inverses
-may not be clear to people who don’t read documentation.
+may not be clear to people who don't read documentation.
 
 \section{Homotopy Group}
 The homotopy group is finitely presented by generators and relations.
@@ -73,7 +73,7 @@ In FriCAS the main group functionality is in PermutationGroup so it
 would be useful to be able to convert to and from it.
 
 A finitely presented group may, or may not be, convertible to a permutation
-group. There is a well known method for this called the Todd–Coxeter
+group. There is a well known method for this called the Todd-Coxeter
 algorithm, this uses coset enumeration.
 
 Since this algorithm is quite complicated I will start by implementing
@@ -101,23 +101,18 @@ See:
 This assumes that Sg and Sh are disjoint. In order to assure this the
 generators will be renumbered before doing the product.
 
-\section{Subgroups}
+\section{Quotients}
 
-We can generate a subgroup by either removing a generator or
-adding a relation. We have functions to create subgroups in either
-of these ways.
+We can generate a quotient by removing a generator (more precisely
+adding relation equating this generator to neutral element) or
+more generaly by adding a relation. We have functions
+to create new groups in either of these ways, but
+confusingly they are called \spad{subgroup}.
 
-Removing a generator is an example of a surjective mapping
+A quitent is an example of a surjective mapping
 (epimorphism) on the group. It is easy to work with functions
 between finitely presented groups, all we have to do is map
 the generators and check that the relations still equal 1.
-
-It would be tempting to combine removing generators and
-adding relations by having a quotient function. However this
-would only work if the generators and relations were named
-to correspond correctly.
-
-Note sure how to implement general quotient function?
 
 \section{Simplify Finitely Presented Groups}
 
@@ -595,6 +590,7 @@ GroupPresentation() : Exports == Impl where
        rels1 := removeGen2(rels1, 0)
        [gens1, rels1]
 
+
    -- This is a local function used by simplify.
    TTRemoveEleTimesInverse(s : %, trace : Boolean) : % ==
        gens1 : PrimitiveArray(NNI) := s.gens
@@ -622,8 +618,8 @@ GroupPresentation() : Exports == Impl where
        if trace and changed then print outputRelList(rels2)
        [gens1, rels2]
 
-   -- local function to invert relation. Used by TTSubstitute and
-   -- TTMinimiseInverses.
+   -- local function to invert relation. Used by TTSubstitute,
+   -- TTMinimiseInverses and relationEquivalent.
    -- We invert each element and then reverse the order.
    -- A bit like De Morgan's laws
    invertRelation(relationIn : List(Integer)) : List(Integer) ==
@@ -631,6 +627,56 @@ GroupPresentation() : Exports == Impl where
        for ele in relationIn repeat
            relationOut := concat(-ele, relationOut)
        relationOut
+
+   -- local function to cycle relation. Used by relationEquivalent.
+   -- The effect of a relation is not changed by cycling
+   cycleRelation(relationIn : List(Integer)) : List(Integer) ==
+       relationOut : List(Integer) := concat(relationIn.rest,relationIn.first)
+       --print(message "cycleRelation " << relationIn << message " to " << relationOut)
+       relationOut
+
+   -- Local function to test equivalence of two relations.
+   -- Used by TTRemoveDuplicateRelation.
+   -- Relations are considered equivalent if they are identical or
+   -- if they are the same after being cycled or if they are the
+   -- same after being 'De Morgan' inverted.
+   relationEquivalent(relA : List(Integer),relB : List(Integer)) : Boolean ==
+       -- first filter out cases where relations are different lengths
+       if #relA ~= #relB then return false
+       -- test for equality
+       if relA = relB then return true
+       -- test for equality with 'De Morgan' inverted.
+       if relA = invertRelation(relB) then return true
+       -- test for equality with cycle
+       relBCycle : List(Integer) := copy relB
+       for n in 1..(#relA) repeat
+           relBCycle := cycleRelation(relBCycle)
+           if relA = relBCycle then return true
+       false
+
+   -- This is a local function used by simplify.
+   -- It looks for and removes any duplicated relations.
+   -- Relations are considered duplicates if they are identical or
+   -- if they are the same after being cycled or if they are the
+   -- same after being 'De Morgan' inverted.
+   TTRemoveDuplicateRelation(s : %, trace : Boolean) : % ==
+       gens1 : PrimitiveArray(NNI) := s.gens
+       rels1 : List(List(Integer)) := s.rels
+       rels2 := []$List(List(Integer))
+       --print(message "TTRemoveDuplicateRelation =" << rels1)
+       for rela in rels1 for nrela in 1..(#rels1) repeat
+           -- include relation
+           include : Boolean := true
+           for relb in rels1 for nrelb in 1..(#rels1) repeat
+               if nrela < nrelb then
+                   if relationEquivalent(rela,relb) then
+                       include : Boolean := false
+                       if trace then
+                           print(message "TTRemoveDuplicateRelation duplicate found " _
+                           << rela << message "=" << relb)
+           if include then
+               rels2 := concat(rels2, rela)
+       [gens1, rels2]
 
    -- This is a local function used by simplify.
    -- If a relation contains more inverted elements that non-inverted
@@ -804,8 +850,9 @@ GroupPresentation() : Exports == Impl where
            if level=2 then res := TTRemoveGeneratorIfIdentity(res, trace)
            if level=3 then res := TTRenameGenerator(res, trace)
            if level=4 then res := TTRemoveEleTimesInverse(res, trace)
-           if level=5 then res := TTSubstitute(res, trace)
-           if level=6 then return TTMinimiseInverses(res, trace)
+           if level=5 then res := TTRemoveDuplicateRelation(res, trace)
+           if level=6 then res := TTSubstitute(res, trace)
+           if level=7 then return TTMinimiseInverses(res, trace)
            if isSimpler?(res, lastpass)
                then level := 0
                else level := level + 1
