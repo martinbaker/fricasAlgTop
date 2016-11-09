@@ -325,10 +325,10 @@ GroupPresentation() : Exports == Impl where
       ++ they correspond to the appropriate entries in the relations.
       ++ Therefore we can refactor the generators without changing the
       ++ group represented.
-    subgroup : (a : %, remgen : List(NNI)) -> %
-      ++ take subgroup by removing generators specified by remgen
-    subgroup : (a : %, addrel : List(List(Integer))) -> %
-      ++ take subgroup by adding relations specified by addrel
+    quotient : (a : %, remgen : List(NNI)) -> %
+      ++ take quotient by removing generators specified by remgen
+    quotient : (a : %, addrel : List(List(Integer))) -> %
+      ++ take quotient by adding relations specified by addrel
     directProduct : (a : %, b : %) -> %
       ++ directProduct of two groups
     cyclicGroup : (n : PI) -> %
@@ -652,6 +652,7 @@ GroupPresentation() : Exports == Impl where
        for n in 1..(#relA) repeat
            relBCycle := cycleRelation(relBCycle)
            if relA = relBCycle then return true
+           if relA = invertRelation(relBCycle) then return true
        false
 
    -- This is a local function used by simplify.
@@ -668,7 +669,7 @@ GroupPresentation() : Exports == Impl where
            -- include relation
            include : Boolean := true
            for relb in rels1 for nrelb in 1..(#rels1) repeat
-               if nrela < nrelb then
+               if nrela > nrelb then
                    if relationEquivalent(rela,relb) then
                        include : Boolean := false
                        if trace then
@@ -873,8 +874,8 @@ GroupPresentation() : Exports == Impl where
                   for z in ra]
        groupPresentation(gb, rb)
 
-   -- take subgroup by removing generators specified by remgen
-   subgroup(a : %, remgen : List(NNI)) : % ==
+   -- take quotient by removing generators specified by remgen
+   quotient(a : %, remgen : List(NNI)) : % ==
        gens1 : PrimitiveArray(NNI) := a.gens
        rels1 : List(List(Integer)) := a.rels
        for toBeRemoved in remgen repeat
@@ -882,8 +883,8 @@ GroupPresentation() : Exports == Impl where
            rels1 := removeGen2(rels1, toBeRemoved)
        simplify(groupPresentation(entries(gens1), rels1))
 
-   -- take subgroup by adding relations specified by addrel
-   subgroup(a : %, addrel : List(List(Integer))) : % ==
+   -- take quotient by adding relations specified by addrel
+   quotient(a : %, addrel : List(List(Integer))) : % ==
        gens1 : List(NNI) := entries(a.gens)
        rels1 : List(List(Integer)) := a.rels
        simplify(groupPresentation(entries(gens1), concat(rels1,addrel)))
