@@ -873,11 +873,10 @@ PermutationGroup(S : SetCategory) : public == private where
     --   return values.
     -- ele holds permutation for current element.
     -- parent holds parent of this node.
-    -- pathWord holds path so far as list of generators (edges)
     -- pathElements holds path so far as list of elements (nodes)
     -- loopBreaker holds recursion depth to prevent infinite recursion
     constructTree(gs : L PERM S,gInvs : L PERM S,allEleR : Reference L PERM S,_
-                 ele : PERM S, parent : Tree PERM S , pathWord : L Integer,_
+                 ele : PERM S, parent : Tree PERM S ,_
                  pathElements : L PERM S,loopBreaker : NNI) : Tree PERM S ==
         x<<y ==> hconcat(x::OutputForm, y::OutputForm)
         if loopBreaker > 10000 then error "can't create groupPresentation - too big"
@@ -894,26 +893,28 @@ PermutationGroup(S : SetCategory) : public == private where
         for g in gs for ng in 1..(#gs) repeat
           newEle : PERM S := ele*g
           concatEleIfNew(allEleR, newEle)
-          newPathWord:L Integer := concat(pathWord,ng)
           newPathElements: L PERM S := concat(pathElements,ele)
           subTree: Tree PERM S:= constructTree(gs,gInvs,allEleR, newEle, parent,_
-                                 newPathWord, newPathElements,loopBreaker+1)
+                                 newPathElements,loopBreaker+1)
           --if loopBreaker=0 then print("constructTree A ng=" << ng << " subTree=" << subTree)
           children := concat(children,subTree)
         -- also generate child for each inverse generator
         for gInv in gInvs for ng in 1..(#gInvs) repeat
           newEle : PERM S := ele*gInv
           concatEleIfNew(allEleR, newEle)
-          newPathWord:L Integer := concat(pathWord,-ng)
           newPathElements: L PERM S := concat(pathElements,ele)
           subTree: Tree PERM S:= constructTree(gs,gInvs,allEleR, newEle, parent,_
-                                 newPathWord, newPathElements,loopBreaker+1)
+                                 newPathElements,loopBreaker+1)
           children := concat(children,subTree)
           --if loopBreaker=0 then print("constructTree B ng=" << -ng << " subTree=" << subTree)
         tree(ele,children)
 
     -- local function to map permutation tree to index tree.
-    mapTree(tr : Tree PERM S,allEle : L PERM S,word : WORD) : Tree WORD ==
+    -- tr holds tree of permutations
+    -- numGens holds the number of (non-inverted) generators
+    -- allEle holds list of all elements as permutations, used to indexify
+    -- word holds sequence (List) of elements as both node and generator sequence.
+    mapTree(tr : Tree PERM S,numGens : NNI,allEle : L PERM S,word : WORD) : Tree WORD ==
         if empty?(tr) then return empty()
         v : PERM S := value(tr)
         integ : Integer := position(v,allEle)
@@ -924,7 +925,6 @@ PermutationGroup(S : SetCategory) : public == private where
         if leaf?(tr) then return tree(w)
         chas:List Tree PERM S := children(tr)
         chbs:List Tree WORD := []$(List Tree WORD)
-        numGens : Integer := divide(#chas,2).quotient
         --first map for positive generators
         for cha in chas for chn in 1..(#chas) repeat
           -- chn gives number of generators + inverse generators
@@ -932,9 +932,9 @@ PermutationGroup(S : SetCategory) : public == private where
           -- a negative number for inverses.
           chni : Integer := chn
           if chni > numGens then
-              chni := -(chni-numGens)
+              chni := numGens-chni
           me := [i,chni]
-          chb : Tree WORD := mapTree(cha,allEle,concat(word,me))
+          chb : Tree WORD := mapTree(cha,numGens,allEle,concat(word,me))
           chbs := concat(chbs,chb)
         tree(w,chbs)
 
@@ -988,13 +988,13 @@ PermutationGroup(S : SetCategory) : public == private where
             concatEleIfNew(elementIndexR,g)
         for gInv in gInvs repeat
             concatEleIfNew(elementIndexR,gInv)
-        t := constructTree(gs,gInvs,elementIndexR,1$(PERM S),t,[]$(L Integer),[]$(L PERM S),0)
+        t := constructTree(gs,gInvs,elementIndexR,1$(PERM S),t,[]$(L PERM S),0)
         --print(message "groupPresentation tree=" << t)
         elementIndex : L PERM S := deref(elementIndexR)
         --print(message "groupPresentation elements=" << elementIndex)
         -- indexify element list.
         emptyWord : WORD := []$WORD
-        itr:Tree WORD := mapTree(t,elementIndex,emptyWord)
+        itr:Tree WORD := mapTree(t,#gs,elementIndex,emptyWord)
         --print(message "groupPresentation itr=" << itr)
         relators: L WORD := calculatePaths(itr)
         --print(message "groupPresentation relators=" << relators)
