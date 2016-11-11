@@ -337,6 +337,10 @@ GroupPresentation() : Exports == Impl where
     dihedralGroup : (n : PI) -> %
       ++ dihedralGroup(n) constructs the dihedral group of order 2n
       ++ acting on integers 1, ..., N.
+    toPermutationIfCan : (a : %) -> Union(PermutationGroup Integer, "failed")
+      ++ convert to permutation group return "failed" for infinite groups.
+    toPermutationIfCan : (a : %, trace : Boolean) -> Union(PermutationGroup Integer, "failed")
+      ++ convert to permutation group return "failed" for infinite groups.
 
   Impl ==> add
 
@@ -919,6 +923,64 @@ GroupPresentation() : Exports == Impl where
        c1 : % := cyclicGroup(n)
        c2 : % := cyclicGroup(2)
        directProduct(c1, c2)
+
+   -- Convert to permutation group. Return "failed" for infinite groups.
+   toPermutationIfCan(a : %) : Union(PermutationGroup Integer, "failed") ==
+       toPermutationIfCan(a,false)
+
+   -- Convert to permutation group. Return "failed" for infinite groups.
+   -- ********** still under construction - dont use *****************
+   -- This function attempts to implement the Todd-Coxeter algorithm.
+   toPermutationIfCan(a : %,trace : Boolean) : Union(PermutationGroup Integer, "failed") ==
+       numberPoints : NNI := 1
+       -- numberPoints is the number of points being permuted. This starts at 1 and
+       -- increases when required to fill in a gap in relator tables.
+       gs : List(NNI) := entries(a.gens)
+       rs : List(List(Integer)) := a.rels
+       if #gs=0 and #rs=0 then
+           -- if no generators return trivial group
+           unit : Permutation(Integer) := 1
+           return permutationGroup([unit])
+       if #gs > #rs then
+           -- if more generators than relations then must be infinite.
+           return "failed"
+       relatorTables : List TwoDimensionalArray NNI := []
+       for r in rs repeat
+           -- construct a relator table for each relation
+           rt : TwoDimensionalArray NNI := new(1,#r,0)
+           -- initial row of each table starts and ends with '1'.
+           setelt!(rt,1,1,numberPoints)
+           relatorTables := concat(relatorTables,rt)
+       permutationImages : List List Integer := []
+       -- find shortest gap
+       minGap : NNI := 99999
+       if trace then print(message "toPermutationIfCan relatorTables=" << relatorTables)
+       -- In order to fill in gaps in relator tables first find the table and
+       -- row that has the smallest gap.
+       tableNumber : NNI := 0
+       rowNumber : NNI := 0
+       smallestGap : NNI := 999999
+       for rtab in relatorTables for ntab in 1..(#relatorTables) repeat
+           LLTab : List(List(NNI)) := listOfLists(rtab)
+           for row in LLTab for nrow in 1..(#LLTab) repeat
+               if trace then print(message "toPermutationIfCan row=" << row)
+               gap : NNI := 0
+               for ele in row for nele in 1..(#row) repeat
+                   if ele=0 then gap := gap + 1
+                   if nele=(#row) then
+                       if gap ~= 0 and gap < smallestGap then
+                           smallestGap := gap
+                           gap := 0
+                           tableNumber := ntab
+                           rowNumber := nrow
+       if smallestGap = 999999 or smallestGap = 0 then
+           if trace then print(message "toPermutationIfCan completed relatorTables=" << relatorTables)
+           return "failed"
+       -- Now fill in the smallest gap by increasing numberPoints.
+       if trace then print(message "toPermutationIfCan tableNumber=" << tableNumber << _
+                  message " rowNumber=" << rowNumber << _
+                  message " smallestGap=" << smallestGap)
+       "failed"
 
    -- output
    coerce(s : %) : OutputForm ==
