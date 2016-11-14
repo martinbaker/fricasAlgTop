@@ -643,13 +643,13 @@ GroupPresentation() : Exports == Impl where
    -- Used by TTRemoveDuplicateRelation.
    -- Relations are considered equivalent if they are identical or
    -- if they are the same after being cycled or if they are the
-   -- same after being 'De Morgan' inverted.
+   -- same after being inverted.
    relationEquivalent(relA : List(Integer),relB : List(Integer)) : Boolean ==
        -- first filter out cases where relations are different lengths
        if #relA ~= #relB then return false
        -- test for equality
        if relA = relB then return true
-       -- test for equality with 'De Morgan' inverted.
+       -- test for equality with inverted.
        if relA = invertRelation(relB) then return true
        -- test for equality with cycle
        relBCycle : List(Integer) := copy relB
@@ -663,7 +663,7 @@ GroupPresentation() : Exports == Impl where
    -- It looks for and removes any duplicated relations.
    -- Relations are considered duplicates if they are identical or
    -- if they are the same after being cycled or if they are the
-   -- same after being 'De Morgan' inverted.
+   -- same after being inverted.
    TTRemoveDuplicateRelation(s : %, trace : Boolean) : % ==
        gens1 : PrimitiveArray(NNI) := s.gens
        rels1 : List(List(Integer)) := s.rels
@@ -677,8 +677,8 @@ GroupPresentation() : Exports == Impl where
                    if relationEquivalent(rela,relb) then
                        include : Boolean := false
                        if trace then
-                           print(message "TTRemoveDuplicateRelation duplicate found " _
-                           << rela << message "=" << relb)
+                           m ==> "TTRemoveDuplicateRelation duplicate found "
+                           print(message m << rela << message "=" << relb)
            if include then
                rels2 := concat(rels2, rela)
        [gens1, rels2]
