@@ -924,13 +924,64 @@ GroupPresentation() : Exports == Impl where
        c2 : % := cyclicGroup(2)
        directProduct(c1, c2)
 
+   -- local function used by toPermutationIfCan
+   -- If we still have gaps (zeroes) in permutations then add
+   -- a point.
+   addPoint(permR : Reference TwoDimensionalArray NNI,_
+                      rels : List(List(Integer))) : Boolean ==
+       permutations : TwoDimensionalArray NNI := deref(permR)
+       numberPoints : NNI := maxRowIndex(permutations) :: NNI
+       minGap : NNI := 0
+       for r in rels for rn in 1..(#rels) repeat
+           for n in 1..numberPoints repeat
+               if elt(permutations,n,r.rn) = 0 then
+                   setelt!(permutations,n,r.rn,numberPoints+1)
+                   numGens : NNI := maxColIndex(permutations) :: NNI
+                   newRow : TwoDimensionalArray NNI := new(1,numGens,0)
+                   permutations := vertConcat(permutations,newRow)
+                   setref(permR,permutations)
+                   return true
+       false
+
+   -- local function used by toPermutationIfCan
+   -- If we still have gaps (zeroes) in permutations then we need
+   -- to choose where to try adding a new point, so choose a point
+   -- which has minimum gap to try to bridge the gap.
+   findMinimumGap(permR : Reference TwoDimensionalArray NNI,_
+                      rels : List(List(Integer))) : Boolean ==
+       permutations : TwoDimensionalArray NNI := deref(permR)
+       numberPoints : NNI := maxRowIndex(permutations) :: NNI
+       minGap : NNI := 0
+       for r in rels for rn in 1..(#rels) repeat
+           for n in 1..numberPoints repeat
+               gb : NNI := 0
+               -- how far can we get from beginning
+               i : NNI := elt(permutations,n,r.rn)
+               for s in r repeat
+                   if i ~= 0 then
+                       i := elt(permutations,n,abs(s))
+                       gb := gb+1
+               ge : NNI := numberPoints
+               -- how far can we get from end
+               i : NNI := elt(permutations,n,r.rn)
+               for s in r repeat
+                   if i ~= 0 then
+                       i := elt(permutations,n,abs(s))
+                       x : Union(NNI,"failed") := subtractIfCan(ge,1)
+                       if x case "failed" then error "problem in findMinimumGap"
+                       ge := x pretend NNI
+               print(message "findMinimumGap rn=" << rn << message " n=" << n << _
+                     message " gb=" << gb << message " ge=" << ge)
+       false
+
    -- Convert to permutation group. Return "failed" for infinite groups.
    toPermutationIfCan(a : %) : Union(PermutationGroup Integer, "failed") ==
        toPermutationIfCan(a,false)
 
    -- Convert to permutation group. Return "failed" for infinite groups.
+   -- This function implements the Todd-Coxeter algorithm.
    -- ********** still under construction - dont use *****************
-   -- This function attempts to implement the Todd-Coxeter algorithm.
+   -- This function implements the Todd-Coxeter algorithm.
    toPermutationIfCan(a : %,trace : Boolean) : Union(PermutationGroup Integer, "failed") ==
        numberPoints : NNI := 1
        -- numberPoints is the number of points being permuted. This starts at 1 and
@@ -944,62 +995,74 @@ GroupPresentation() : Exports == Impl where
        if #gs > #rs then
            -- if more generators than relations then must be infinite.
            return "failed"
-       relatorTables : List TwoDimensionalArray NNI := []
-       generatorImages : List OneDimensionalArray NNI := []
-       generatorInverseImages : List OneDimensionalArray NNI := []
-       for r in rs repeat
-           -- construct a relator table for each relation
-           rt : TwoDimensionalArray NNI := new(1,#r,0)
-           -- initial row of each table starts and ends with '1'.
-           setelt!(rt,1,1,numberPoints)
-           relatorTables := concat(relatorTables,rt)
-       for g in gs repeat
-           -- construct a permutation image for each generator
-           gt : OneDimensionalArray NNI := new(1,0)
-           generatorImages := concat(generatorImages,gt)       
-           gti : OneDimensionalArray NNI := new(1,0)
-           generatorInverseImages := concat(generatorInverseImages,gti)       
-       -- find shortest gap
-       minGap : NNI := 99999
-       if trace then print(message "toPermutationIfCan relatorTables=" << relatorTables << _
-                           message " generatorImages=" << generatorImages << _
-                           message " generatorInverseImages=" << generatorInverseImages)
-       -- In order to fill in gaps in relator tables first find the table and
-       -- row that has the smallest gap.
-       tableNumber : NNI := 0
-       rowNumber : NNI := 0
-       smallestGap : NNI := 999999
-       for rtab in relatorTables for ntab in 1..(#relatorTables) repeat
-           LLTab : List(List(NNI)) := listOfLists(rtab)
-           for row in LLTab for nrow in 1..(#LLTab) repeat
-               if trace then print(message "toPermutationIfCan row=" << row)
-               gap : NNI := 0
-               for ele in row for nele in 1..(#row) repeat
-                   if ele=0 then gap := gap + 1
-                   if nele=(#row) then
-                       if gap ~= 0 and gap < smallestGap then
-                           smallestGap := gap
-                           gap := 0
-                           tableNumber := ntab
-                           rowNumber := nrow
-       if smallestGap = 999999 or smallestGap = 0 then
-           if trace then print(message "toPermutationIfCan completed relatorTables=" << relatorTables << _
-                           message " generatorImages=" << generatorImages << _
-                           message " generatorInverseImages=" << generatorInverseImages)
-           return "failed"
-       thisEleId : Integer := (rs.tableNumber).rowNumber
-       if trace then print(message "toPermutationIfCan thisEleId=" << thisEleId << _
-                  message " rowNumber=" << rowNumber << _
-                  message " smallestGap=" << smallestGap)
-       -- Now fill in generatorImages
-       --setelt!(rt,1,1,numberPoints)
-       -- Now fill in the smallest gap by increasing numberPoints.
-       if trace then print(message "toPermutationIfCan tableNumber=" << tableNumber << _
-                  message " rowNumber=" << rowNumber << _
-                  message " smallestGap=" << smallestGap)
-       if trace then print(message "toPermutationIfCan relatorTables=" << relatorTables << _
-                           message " generatorImages=" << generatorImages << _
-                           message " generatorInverseImages=" << generatorInverseImages)
+       numGens : NNI := #gs
+       permutations : TwoDimensionalArray NNI := new(numberPoints,numGens,0)
+       permR : Reference TwoDimensionalArray NNI := ref(permutations)
+       -- Permutations will hold a permutation for each generator. This will
+       -- be built up as we get more information.
+       changed : Boolean := addPoint(permR,rs)
+       permutations := deref(permR)
+       if trace then print(message "toPermutationIfCan permutations=" << permutations << message " changed=" << changed)
+--       changed : Boolean := addPoint(permR,rs)
+--       permutations := deref(permR)
+--       if trace then print(message "toPermutationIfCan permutations=" << permutations << message " changed=" << changed)
+
+--       relatorTables : List TwoDimensionalArray NNI := []
+--       generatorImages : List OneDimensionalArray NNI := []
+--       generatorInverseImages : List OneDimensionalArray NNI := []
+--       for r in rs repeat
+--           -- construct a relator table for each relation
+--           rt : TwoDimensionalArray NNI := new(1,#r,0)
+--           -- initial row of each table starts and ends with '1'.
+--           setelt!(rt,1,1,numberPoints)
+--           relatorTables := concat(relatorTables,rt)
+--       for g in gs repeat
+--           -- construct a permutation image for each generator
+--           gt : OneDimensionalArray NNI := new(1,0)
+--           generatorImages := concat(generatorImages,gt)       
+--           gti : OneDimensionalArray NNI := new(1,0)
+--           generatorInverseImages := concat(generatorInverseImages,gti)       
+--       -- find shortest gap
+--       minGap : NNI := 99999
+--       if trace then print(message "toPermutationIfCan relatorTables=" << relatorTables << _
+--                           message " generatorImages=" << generatorImages << _
+--                           message " generatorInverseImages=" << generatorInverseImages)
+--       -- In order to fill in gaps in relator tables first find the table and
+--       -- row that has the smallest gap.
+--       tableNumber : NNI := 0
+--       rowNumber : NNI := 0
+--       smallestGap : NNI := 999999
+--       for rtab in relatorTables for ntab in 1..(#relatorTables) repeat
+--           LLTab : List(List(NNI)) := listOfLists(rtab)
+--           for row in LLTab for nrow in 1..(#LLTab) repeat
+--               if trace then print(message "toPermutationIfCan row=" << row)
+--               gap : NNI := 0
+--               for ele in row for nele in 1..(#row) repeat
+--                   if ele=0 then gap := gap + 1
+--                   if nele=(#row) then
+--                       if gap ~= 0 and gap < smallestGap then
+--                           smallestGap := gap
+--                           gap := 0
+--                           tableNumber := ntab
+--                           rowNumber := nrow
+--       if smallestGap = 999999 or smallestGap = 0 then
+--           if trace then print(message "toPermutationIfCan completed relatorTables=" << relatorTables << _
+--                           message " generatorImages=" << generatorImages << _
+--                           message " generatorInverseImages=" << generatorInverseImages)
+--           return "failed"
+--       thisEleId : Integer := (rs.tableNumber).rowNumber
+--       if trace then print(message "toPermutationIfCan thisEleId=" << thisEleId << _
+--                  message " rowNumber=" << rowNumber << _
+--                  message " smallestGap=" << smallestGap)
+--       -- Now fill in generatorImages
+--       --setelt!(rt,1,1,numberPoints)
+--       -- Now fill in the smallest gap by increasing numberPoints.
+--       if trace then print(message "toPermutationIfCan tableNumber=" << tableNumber << _
+--                  message " rowNumber=" << rowNumber << _
+--                  message " smallestGap=" << smallestGap)
+--       if trace then print(message "toPermutationIfCan relatorTables=" << relatorTables << _
+--                           message " generatorImages=" << generatorImages << _
+--                           message " generatorInverseImages=" << generatorInverseImages)
        "failed"
 
    -- output
