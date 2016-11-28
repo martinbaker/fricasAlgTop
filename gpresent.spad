@@ -924,14 +924,93 @@ GroupPresentation() : Exports == Impl where
        c2 : % := cyclicGroup(2)
        directProduct(c1, c2)
 
-   -- local function used by toPermutationIfCan
+   -- Lookup next index
+   next(permR : Reference TwoDimensionalArray NNI,index : Integer,_
+        gen : NNI, rev : Boolean) : NNI ==
+       permutations : TwoDimensionalArray NNI := deref(permR)
+       print(message "next permutations" << permutations << " index=" << index << _
+             message " gen=" << gen << _
+             message " rev=" << rev)
+       if index = 0 then return 0
+       positive : Boolean := index > 0
+       if positive = rev then
+           return elt(permutations,gen,abs(index))
+       -- If we reach this point then we need to do reverse lookup.
+       numberPoints : NNI := maxRowIndex(permutations) :: NNI
+       for x in 1..numberPoints repeat
+           if x=elt(permutations,abs(index),gen) then
+               print(message "next rev return=" << x)
+               return x
+       print(message "next zero")
+       0
+
+   -- Local function used by toPermutationIfCan.
+   -- If we still have gaps (zeroes) in permutations then we may
+   -- be able to infer a step from the relations.
+   -- If there is a single step gap then we can use this to fill in
+   -- information because relations are loops and therefore start and
+   -- end with the same value.
+   -- If permutations are changed then we return true.
+   -- If so permutations is mutated.
+   -- permR is called as a Reference in case we need to 
+   -- eliminate duplicate points.
+   inferFromRelations(permR : Reference TwoDimensionalArray NNI,_
+                      rels : List(List(Integer))) : Boolean ==
+       permutations : TwoDimensionalArray NNI := deref(permR)
+       numberPoints : NNI := maxRowIndex(permutations) :: NNI
+       print(message "inferFromRelations enter permutations=" << permutations << _
+             message " rels=" << rels << message " numberPoints=" << numberPoints)
+       for r in rels for rn in 1..(#rels) repeat
+           print(message "inferFromRelations r=" << r << message " rn=" << rn)
+           -- in r look for gap of 1 step
+           relWidth : NNI := #r
+           for n in 1..numberPoints repeat
+               print(message "inferFromRelations n=" << n)
+               gb : NNI := 0
+               -- how far can we get from beginning
+               i : NNI := elt(permutations,n,r.rn)
+               for s in r repeat
+                   if i ~= 0 then
+                       i := next(permR,i,n,false)
+                       gb := gb+1
+                   print(message "inferFromRelations set gb=" << gb << message " n=" << n << _
+                         message " rn=" << rn << message " i=" << i)
+               ge : NNI := 0
+               -- how far can we get from end
+               rr : List(Integer) := reverse(r)
+               i : NNI := elt(permutations,n,rr.rn)
+               for s in rr repeat
+                   if i ~= 0 then
+                       i := next(permR,i,n,true)
+                       ge := ge+1
+                   --print(message "inferFromRelations 1 rn=" << rn << message " n=" << n << _
+                   --      message " ge=" << ge << message " i=" << i)
+               print(message "inferFromRelations permutations=" << permutations << _
+                     message " rn=" << rn << message " n=" << n << _
+                     message " relWidth=" << relWidth << _
+                     message " gb=" << gb << message " ge=" << ge << _
+                     message " gap=" << (relWidth-gb-ge))
+               if relWidth-gb-ge = 1 then
+                   -- gap = 1 then we can infer somthing
+                   print(message "gap = 1 numberPoints=" << numberPoints)
+                   if ge = 0 then ge := 1
+                   nextPoint : NNI := ge
+                   print(message "inferFromRelations gap = 1 numberPoints=" << numberPoints << _
+                         message " gb=" << gb << message " nextPoint=" << nextPoint << _
+                         message " r.rn=" << r.rn)
+                   setelt!(permutations,numberPoints,r.rn,nextPoint)
+                   return true
+       false
+
+   -- Local function used by toPermutationIfCan
    -- If we still have gaps (zeroes) in permutations then add
    -- a point.
    addPoint(permR : Reference TwoDimensionalArray NNI,_
                       rels : List(List(Integer))) : Boolean ==
        permutations : TwoDimensionalArray NNI := deref(permR)
        numberPoints : NNI := maxRowIndex(permutations) :: NNI
-       minGap : NNI := 0
+       print(message "addPoint permutations=" << permutations << _
+             message " rels=" << rels << message " numberPoints=" << numberPoints)
        for r in rels for rn in 1..(#rels) repeat
            for n in 1..numberPoints repeat
                if elt(permutations,n,r.rn) = 0 then
@@ -943,7 +1022,7 @@ GroupPresentation() : Exports == Impl where
                    return true
        false
 
-   -- local function used by toPermutationIfCan
+   -- Local function used by toPermutationIfCan
    -- If we still have gaps (zeroes) in permutations then we need
    -- to choose where to try adding a new point, so choose a point
    -- which has minimum gap to try to bridge the gap.
@@ -1000,12 +1079,18 @@ GroupPresentation() : Exports == Impl where
        permR : Reference TwoDimensionalArray NNI := ref(permutations)
        -- Permutations will hold a permutation for each generator. This will
        -- be built up as we get more information.
-       changed : Boolean := addPoint(permR,rs)
-       permutations := deref(permR)
-       if trace then print(message "toPermutationIfCan permutations=" << permutations << message " changed=" << changed)
---       changed : Boolean := addPoint(permR,rs)
---       permutations := deref(permR)
---       if trace then print(message "toPermutationIfCan permutations=" << permutations << message " changed=" << changed)
+       loopBreaker : NNI := 0
+       while loopBreaker < 3 repeat
+           loopBreaker := loopBreaker + 1
+           changed : Boolean := true
+           while changed repeat
+               changed := inferFromRelations(permR,rs)
+           if trace then print(message "toPermutationIfCan try infer permutations=" << deref(permR) << message " changed=" << changed)
+           changed := addPoint(permR,rs)
+           if trace then print(message "toPermutationIfCan add point permutations=" << deref(permR) << message " changed=" << changed)
+           if not changed then return "failed"
+       "failed"
+           
 
 --       relatorTables : List TwoDimensionalArray NNI := []
 --       generatorImages : List OneDimensionalArray NNI := []
@@ -1063,7 +1148,6 @@ GroupPresentation() : Exports == Impl where
 --       if trace then print(message "toPermutationIfCan relatorTables=" << relatorTables << _
 --                           message " generatorImages=" << generatorImages << _
 --                           message " generatorInverseImages=" << generatorInverseImages)
-       "failed"
 
    -- output
    coerce(s : %) : OutputForm ==
