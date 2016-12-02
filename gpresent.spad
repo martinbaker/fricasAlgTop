@@ -1004,12 +1004,12 @@ GroupPresentation() : Exports == Impl where
                --      message " gap=" << (relWidth-gb-ge))
                if relWidth-gb-ge = 1 then
                    -- gap = 1 then we can infer somthing
-                   genIn : NNI := abs(r.gb) :: NNI
+                   genIn : NNI := abs(r.(gb+1)) :: NNI
                    nextPoint : NNI := ge
                    print(message "inferFromRelations found a gap of 1 so deduction made")
                    print(message "gap is in relator table:" << r)
                    print(message "distance from start:" << gb << message " from end:" << ge)
-                   print(message "row at start:" << pn << message " r.gb=" << r.gb)
+                   print(message "row at start:" << pn)
                    print(message "row to change:" << pb << message " new value:" << pe)
                    print(message "generator index=" << genIn << message " nextPoint=" << nextPoint)
                    if elt(generators,pb,genIn) ~= 0 then
