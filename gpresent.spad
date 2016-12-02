@@ -1006,33 +1006,42 @@ GroupPresentation() : Exports == Impl where
                    -- gap = 1 then we can infer somthing
                    genIn : NNI := abs(r.gb) :: NNI
                    nextPoint : NNI := ge
-                   print(message "inferFromRelations gap = 1 numberPoints=" << numberPoints << _
-                         message " r=" << r << message " r.gb=" << r.gb << _
-                         message " gb=" << gb << message " ge=" << ge << _
-                         message " pb=" << pb << message " pe=" << pe << _
-                         message " genIn=" << genIn << message " nextPoint=" << nextPoint)
+                   print(message "inferFromRelations found a gap of 1 so deduction made")
+                   print(message "gap is in relator table:" << r)
+                   print(message "distance from start:" << gb << message " from end:" << ge)
+                   print(message "row at start:" << pn << message " r.gb=" << r.gb)
+                   print(message "row to change:" << pb << message " new value:" << pe)
+                   print(message "generator index=" << genIn << message " nextPoint=" << nextPoint)
                    if elt(generators,pb,genIn) ~= 0 then
-                       error "coding error attempt to set non-zero value"
+                       print(message "setelt!(" << generators << _
+                             message "," << pb << _
+                             message "," << genIn << _
+                             message "," << pe << _
+                             message ")")
+                       error "inferFromRelations: coding error attempt to set non-zero value"
                    if nextPoint=0 then nextPoint := 1
                    if trace then
-                       print(message "inferFromRelations gap = 1 genIn=" << genIn << _
+                       print(message "inferFromRelations genIn=" << genIn << _
                              message " gb=" << gb << message " nextPoint=" << nextPoint)
                    setelt!(generators,pb,genIn,pe)
                    return true
        false
 
    -- Local function used by toPermutationIfCan
-   -- If we still have gaps (zeroes) in generators then add
-   -- a point.
+   -- If we still have gaps (zeroes) in generators and we cannot deduce
+   -- any futher then add a point.
    addPoint(gensR : Reference TwoDimensionalArray NNI,_
-                      rels : List(List(Integer))) : Boolean ==
+                      rels : List(List(Integer)),trace : Boolean) : Boolean ==
        generators : TwoDimensionalArray NNI := deref(gensR)
        numberPoints : NNI := maxRowIndex(generators) :: NNI
-       print(message "addPoint generators=" << generators << _
-             message " rels=" << rels << message " numberPoints=" << numberPoints)
        for r in rels for rn in 1..(#rels) repeat
            for n in 1..numberPoints repeat
                if elt(generators,n,r.rn) = 0 then
+                   if trace then
+                       print(message "addPoint: cannot deduce more so adding a point")
+                       print (message "adding:" << numberPoints+1 << _
+                              message " to generator:" << r.rn << _
+                              message " at row:" << n)
                    setelt!(generators,n,r.rn,numberPoints+1)
                    numGens : NNI := maxColIndex(generators) :: NNI
                    newRow : TwoDimensionalArray NNI := new(1,numGens,0)
@@ -1072,6 +1081,33 @@ GroupPresentation() : Exports == Impl where
                      message " gb=" << gb << message " ge=" << ge)
        false
 
+   -- Local function to construct relator tables.
+   -- Although relator tables are used when manually calculating Todd-Cod for
+   -- computations it seems easier to construct dynamically as required.
+   -- Mostly only required for manual tracking.
+   relatorTables(gensR : Reference TwoDimensionalArray NNI,_
+                 rels : List(List(Integer))) : List TwoDimensionalArray NNI ==
+       generators : TwoDimensionalArray NNI := deref(gensR)
+       genLists : List TwoDimensionalArray NNI := _
+                  horizSplit(generators,ncols(generators) :: PositiveInteger)
+       relators : List TwoDimensionalArray NNI := []
+       for r in rels repeat
+           relator : TwoDimensionalArray NNI := new(0,0,0)
+           fst : Boolean := true
+           for g in r repeat
+               gNum : NNI := abs(g) :: NNI
+               relatorn : TwoDimensionalArray NNI := genLists.gNum
+               --print(message "relatorTables genLists=" << genLists << message " gNum=" << gNum)               
+               if fst
+                   then
+                       relator := relatorn
+                       fst := false
+                   else
+                       relator := horizConcat(relator,relatorn)
+           relators := concat(relators,relator)
+       relators
+
+
    -- Convert to permutation group. Return "failed" for infinite groups.
    toPermutationIfCan(a : %) : Union(PermutationGroup Integer, "failed") ==
        toPermutationIfCan(a,false)
@@ -1099,72 +1135,15 @@ GroupPresentation() : Exports == Impl where
        loopBreaker : NNI := 0
        while loopBreaker < 10000 repeat
            loopBreaker := loopBreaker + 1
-           changed : Boolean := true
-           while changed repeat
-               changed := inferFromRelations(gensR,rs,trace)
-           if trace then print(message "toPermutationIfCan try infer generators=" << deref(gensR) << message " changed=" << changed)
-           changed := addPoint(gensR,rs)
-           if trace then print(message "toPermutationIfCan add point generators=" << deref(gensR) << message " changed=" << changed)
-           if not changed then return "failed"
+           changedByDeduction : Boolean := inferFromRelations(gensR,rs,trace)
+           changedByAdding : Boolean := false
+           --if trace then print(message "toPermutationIfCan try infer generators=" << deref(gensR) << message " changed=" << changed)
+           if not changedByDeduction then
+               changedByAdding := addPoint(gensR,rs,trace)
+           --if trace then print(message "toPermutationIfCan add point generators=" << deref(gensR) << message " changed=" << changed)
+           if (not changedByDeduction) and (not changedByAdding) then return "failed"
+           if trace then print(message "relatorTables=" << relatorTables(gensR,rs))
        "failed"
-           
-
---       relatorTables : List TwoDimensionalArray NNI := []
---       generatorImages : List OneDimensionalArray NNI := []
---       generatorInverseImages : List OneDimensionalArray NNI := []
---       for r in rs repeat
---           -- construct a relator table for each relation
---           rt : TwoDimensionalArray NNI := new(1,#r,0)
---           -- initial row of each table starts and ends with '1'.
---           setelt!(rt,1,1,numberPoints)
---           relatorTables := concat(relatorTables,rt)
---       for g in gs repeat
---           -- construct a permutation image for each generator
---           gt : OneDimensionalArray NNI := new(1,0)
---           generatorImages := concat(generatorImages,gt)       
---           gti : OneDimensionalArray NNI := new(1,0)
---           generatorInverseImages := concat(generatorInverseImages,gti)       
---       -- find shortest gap
---       minGap : NNI := 99999
---       if trace then print(message "toPermutationIfCan relatorTables=" << relatorTables << _
---                           message " generatorImages=" << generatorImages << _
---                           message " generatorInverseImages=" << generatorInverseImages)
---       -- In order to fill in gaps in relator tables first find the table and
---       -- row that has the smallest gap.
---       tableNumber : NNI := 0
---       rowNumber : NNI := 0
---       smallestGap : NNI := 999999
---       for rtab in relatorTables for ntab in 1..(#relatorTables) repeat
---           LLTab : List(List(NNI)) := listOfLists(rtab)
---           for row in LLTab for nrow in 1..(#LLTab) repeat
---               if trace then print(message "toPermutationIfCan row=" << row)
---               gap : NNI := 0
---               for ele in row for nele in 1..(#row) repeat
---                   if ele=0 then gap := gap + 1
---                   if nele=(#row) then
---                       if gap ~= 0 and gap < smallestGap then
---                           smallestGap := gap
---                           gap := 0
---                           tableNumber := ntab
---                           rowNumber := nrow
---       if smallestGap = 999999 or smallestGap = 0 then
---           if trace then print(message "toPermutationIfCan completed relatorTables=" << relatorTables << _
---                           message " generatorImages=" << generatorImages << _
---                           message " generatorInverseImages=" << generatorInverseImages)
---           return "failed"
---       thisEleId : Integer := (rs.tableNumber).rowNumber
---       if trace then print(message "toPermutationIfCan thisEleId=" << thisEleId << _
---                  message " rowNumber=" << rowNumber << _
---                  message " smallestGap=" << smallestGap)
---       -- Now fill in generatorImages
---       --setelt!(rt,1,1,numberPoints)
---       -- Now fill in the smallest gap by increasing numberPoints.
---       if trace then print(message "toPermutationIfCan tableNumber=" << tableNumber << _
---                  message " rowNumber=" << rowNumber << _
---                  message " smallestGap=" << smallestGap)
---       if trace then print(message "toPermutationIfCan relatorTables=" << relatorTables << _
---                           message " generatorImages=" << generatorImages << _
---                           message " generatorInverseImages=" << generatorInverseImages)
 
    -- output
    coerce(s : %) : OutputForm ==
