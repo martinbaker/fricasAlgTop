@@ -94,5 +94,32 @@ testEquals("expected2", "t9")
 t10 := quotient(t8,[[1]])
 testEquals("expected2", "t10")
 
+-- conversions to and from PermutationGroup
+
+testcase "PermutationGroup conversions cyclic group"
+
+c5a := cyclicGroup(5)$PermutationGroupExamples
+c5b := c5a::GroupPresentation
+c5c := toPermutationIfCan(c5b) :: PermutationGroup(Integer)
+
+testEquals("c5a", "c5c")
+
+testcase "PermutationGroup conversions dihedral group"
+
+d3a := dihedralGroup(3)$PermutationGroupExamples
+d3b := d3a::GroupPresentation
+d3c := toPermutationIfCan(d3b) :: PermutationGroup(Integer)
+
+testEquals("order(d3a)", "order(d3c)")
+
+testcase "PermutationGroup conversions containing inverse elements"
+
+d3a := dihedralGroup(3)$GroupPresentation
+d3b := toPermutationIfCan(d3a) :: PermutationGroup(Integer)
+d3c := groupPresentation([1,2],[[1,1,1],[2,2],[-2,-1,-2,-1]])
+d3d := toPermutationIfCan(d3c) :: PermutationGroup(Integer)
+
+testEquals("d3b", "d3d")
+
 statistics()
 

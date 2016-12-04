@@ -928,27 +928,17 @@ GroupPresentation() : Exports == Impl where
    next(gensR : Reference TwoDimensionalArray NNI,_
         point : NNI,genIndex : Integer, rev : Boolean) : NNI ==
        generators : TwoDimensionalArray NNI := deref(gensR)
-       --print(message "next generators" << generators << " genIndex=" << genIndex << _
+       --print(message "next generators" << generators << _
+       --      message " genIndex=" << genIndex << _
        --      message " point=" << point << _
        --      message " rev=" << rev)
        if genIndex = 0 then return 0
-       positive : Boolean := genIndex > 0
-       if positive ~= rev then -- '~=' in Boolean is same as 'exclusive or'
-           --print(message "positive ~= rev elt(" << generators << "," << point << _
-           --      message "," << abs(genIndex) << _
-           --      message ")")
+       if xor(genIndex > 0,rev) then -- genIndex is positive or reverse but not both
            return elt(generators,point,abs(genIndex))
        -- If we reach this point then we need to do reverse lookup.
        numberPoints : NNI := maxRowIndex(generators) :: NNI
        for x in 1..numberPoints repeat
-           --print(message "positive = rev elt(" << generators << "," << point << _
-           --      message "," << x << _
-           --      message ")")
-           --print(message "next elt=" << elt(generators,x,abs(genIndex)))
-           if point=elt(generators,x,abs(genIndex)) then
-               --print(message "next rev return=" << x)
-               return x
-       --print(message "next zero")
+          if point=elt(generators,x,abs(genIndex)) then return x
        0
 
    -- Local function used by toPermutationIfCan.
@@ -959,7 +949,7 @@ GroupPresentation() : Exports == Impl where
    -- end with the same value.
    -- If permutations are changed then we return true.
    -- If so permutations is mutated.
-   -- gensR is called as a Reference in case we need to 
+   -- gensR is called as a Reference in case we need to
    -- eliminate duplicate points.
    inferFromRelations(gensR : Reference TwoDimensionalArray NNI,_
                       rels : List(List(Integer)),trace : Boolean) : Boolean ==
@@ -972,11 +962,11 @@ GroupPresentation() : Exports == Impl where
            relWidth : NNI := #r
            for pn in 1..numberPoints repeat
                -- forwardSequence and backwardSequence are not used in the actual
-               -- but they are shown in the trace to show what is happening.
+               -- algorithm but they are shown in the trace to show what is happening.
                forwardSequence : List(NNI) := []
                backwardSequence : List(NNI) := []
-               gb : NNI := 0
-               pb : NNI := pn
+               gb : NNI := 0 -- generator index in forward sequence
+               pb : NNI := pn -- point index in forward sequence
                -- how far can we get from beginning
                i : NNI := pn
                for genIndex in r repeat
@@ -985,8 +975,8 @@ GroupPresentation() : Exports == Impl where
                    if i ~= 0 then
                        gb := gb+1
                        pb := i
-               ge : NNI := 0
-               pe : NNI := pn
+               ge : NNI := 0 -- generator index in backward sequence
+               pe : NNI := pn -- point index in backward sequence
                -- how far can we get from end
                rr : List(Integer) := reverse(r)
                i : NNI := pn
@@ -1007,11 +997,15 @@ GroupPresentation() : Exports == Impl where
                    if trace then
                        print(message "inferFromRelations found a gap of 1 so deduction made")
                        print(message "gap is in relator table:" << r)
-                       print(message "distance from start:" << gb << message " from end:" << ge)
+                       print(message "distance from start:" << gb << _
+                             message " from end:" << ge)
                        print(message "row at start:" << pn)
-                       print(message "row to change:" << pb << message " new value:" << pe)
-                       print(message "generator index=" << genIn << message " invm=" << invm)
-                       print(message "forwardSequence:" << forwardSequence << message " backwardSequence:" << backwardSequence)
+                       print(message "row to change:" << pb << _
+                             message " new value:" << pe)
+                       print(message "generator index=" << genIn << _
+                             message " invm=" << invm)
+                       print(message "forwardSequence:" << forwardSequence << _
+                             message " backwardSequence:" << backwardSequence)
                    if elt(generators,pb,genIn) ~= 0 then
                        print(message "setelt!(" << generators << _
                              message "," << pb << _
@@ -1043,7 +1037,7 @@ GroupPresentation() : Exports == Impl where
                    --print(message "addPoint: gp=" << gp)
                    if trace then
                        print(message "addPoint: cannot deduce more so adding a point")
-                       print (message "adding:" << gp << _
+                       print(message "adding:" << gp << _
                               message " at row:" << gn)
                    setelt!(generators,gn,gp,numberPoints+1)
                    numGens : NNI := maxColIndex(generators) :: NNI
@@ -1051,37 +1045,6 @@ GroupPresentation() : Exports == Impl where
                    generators := vertConcat(generators,newRow)
                    setref(gensR,generators)
                    return true
-       false
-
-   -- Local function used by toPermutationIfCan
-   -- If we still have gaps (zeroes) in permutations then we need
-   -- to choose where to try adding a new point, so choose a point
-   -- which has minimum gap to try to bridge the gap.
-   findMinimumGap(gensR : Reference TwoDimensionalArray NNI,_
-                      rels : List(List(Integer))) : Boolean ==
-       generators : TwoDimensionalArray NNI := deref(gensR)
-       numberPoints : NNI := maxRowIndex(generators) :: NNI
-       minGap : NNI := 0
-       for r in rels for rn in 1..(#rels) repeat
-           for n in 1..numberPoints repeat
-               gb : NNI := 0
-               -- how far can we get from beginning
-               i : NNI := elt(generators,n,r.rn)
-               for s in r repeat
-                   if i ~= 0 then
-                       i := elt(generators,n,abs(s))
-                       gb := gb+1
-               ge : NNI := numberPoints
-               -- how far can we get from end
-               i : NNI := elt(generators,n,r.rn)
-               for s in r repeat
-                   if i ~= 0 then
-                       i := elt(generators,n,abs(s))
-                       x : Union(NNI,"failed") := subtractIfCan(ge,1)
-                       if x case "failed" then error "problem in findMinimumGap"
-                       ge := x pretend NNI
-               print(message "findMinimumGap rn=" << rn << message " n=" << n << _
-                     message " gb=" << gb << message " ge=" << ge)
        false
 
    -- Local function used by relatorTables.
@@ -1098,7 +1061,7 @@ GroupPresentation() : Exports == Impl where
    -- Local function to construct relator tables.
    -- Although relator tables are used when manually calculating Todd-Cod for
    -- computations it seems easier to construct dynamically as required.
-   -- Mostly only required for manual tracking.
+   -- So this function only used for trace output.
    relatorTables(gensR : Reference TwoDimensionalArray NNI,_
                  rels : List(List(Integer))) : List TwoDimensionalArray NNI ==
        generators : TwoDimensionalArray NNI := deref(gensR)
@@ -1113,7 +1076,8 @@ GroupPresentation() : Exports == Impl where
                gNum : NNI := abs(g) :: NNI
                relatorn : TwoDimensionalArray NNI := _
                    if g>0 then genLists.gNum else invGenLists.gNum
-               --print(message "relatorTables genLists=" << genLists << message " gNum=" << gNum)               
+               --print(message "relatorTables genLists=" << genLists << _
+               --      message " gNum=" << gNum)
                if fst
                    then
                        relator := relatorn
@@ -1134,15 +1098,17 @@ GroupPresentation() : Exports == Impl where
        true
 
    -- convert list of generators to PermutationGroup
-   generators2Permutation(gensR : Reference TwoDimensionalArray NNI) : PermutationGroup Integer ==
+   generators2Permutation(gensR : Reference TwoDimensionalArray NNI) : _
+                          PermutationGroup Integer ==
        p : List Permutation Integer := []$List(Permutation(Integer))
        generators : TwoDimensionalArray NNI := deref(gensR)
-       --print(message "generators2Permutation generators=" << generators)               
+       --print(message "generators2Permutation generators=" << generators)
        genLists : List TwoDimensionalArray NNI := _
                   horizSplit(generators,ncols(generators) :: PositiveInteger)
        for g in genLists repeat
            lol : List(List(NNI)):= listOfLists(transpose(g))
-           -- explicitly convert each element to Integer to avoid calling 'pretend List Integer'
+           -- explicitly convert each element to Integer
+           -- to avoid calling 'pretend List Integer'
            gl : List(Integer) := [x::Integer for x in first(lol)]
            pl : Permutation Integer := coerceImages(gl)
            p := concat(p,pl)
@@ -1177,14 +1143,8 @@ GroupPresentation() : Exports == Impl where
            loopBreaker := loopBreaker + 1
            changedByDeduction : Boolean := inferFromRelations(gensR,rs,trace)
            changedByAdding : Boolean := false
-           --if trace then print(message "toPermutationIfCan 1 generators=" << deref(gensR) << _
-           --                    message " changedByDeduction=" << changedByDeduction << _
-           --                    message " changedByAdding=" << changedByAdding)
            if not changedByDeduction then
                changedByAdding := addPoint(gensR,rs,trace)
-           --if trace then print(message "toPermutationIfCan 2 generators=" << deref(gensR) << _
-           --                    message " changedByDeduction=" << changedByDeduction << _
-           --                    message " changedByAdding=" << changedByAdding)
            if nor(changedByDeduction,changedByAdding) then
                if not validateGenerators(gensR) then
                    error "toPermutationIfCan: zeroes in generators"
