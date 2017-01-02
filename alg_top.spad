@@ -148,179 +148,7 @@ The vertices themselves may be either:
 \end{itemize}
 So we cave a category that can represent any of these types
 and then a domain for each type.
-)endif
 
-)abbrev category VERTS VertexSet
-++ Author: Martin Baker
-++ Description:
-++   An indexed set of vertices
-++   for more documentation see:
-++   http://www.euclideanspace.com/prog/scratchpad/mycode/topology/simplex/
-++ Related Domains: VertexSetAbstract, VertexSetCoord
-++ Date Created: Dec 2015
-VertexSet() : Category == Definition where
- NNI==> NonNegativeInteger
- Definition ==> SetCategory() with
-   maxFaces : (a : %) -> NNI
-     ++ return the maximum number of faces
-   setMaxFaces : (a : %, b : NNI) -> Void
-     ++ set the maximum number of faces
-   join : (a : %, b : %) -> %
-     ++ disjoint union of two vertex sets
-   prod : (a : %, b : %) -> %
-     ++ Cartesian product of two vertex sets
-
-)if false
-\section{Vertex Set Coord}
-This is VertexSet for a geometric simplicial complex. In this case each
-vertex is represented by a point in some underlying space.
-
-We want to represent an indexed set of points, the simplest way to do
-this is to use a list of points.
-)endif
-
-)abbrev domain VERTSC VertexSetCoord
-++ Author: Martin Baker
-++ Description:
-++   An indexed set of vertices represented as coordinates.
-++   for more documentation see:
-++   http://www.euclideanspace.com/prog/scratchpad/mycode/topology/simplex/geometric/
-++ Date Created: Dec 2015
-++ Basic Operations:
-++ Related packages:
-++ Related categories: VertexSet
-++ Related Domains: VertexSetAbstract
-++ Also See:
-++ AMS Classifications:
-++ Keywords:
-++ Examples:
-++ References:
-
-VertexSetCoord(F : Field) : Exports == Impl where
-  NNI==> NonNegativeInteger
-  x<<y ==> hconcat(x::OutputForm, y::OutputForm)
-
-  Exports ==> VertexSet() with
-    vertexSet : (v : List(PrimitiveArray(F))) -> %
-      ++ constructor where the vertex set is supplied
-
-    dimension : (a : %) -> NNI
-      ++ return dimension of underlying space
-
-  Impl ==> add
-
-   -- Representation holds the vertex set, represented as a
-   -- vertex list so that we can index it.
-   Rep := List(PrimitiveArray(F))
-
-   -- constructor where the vertex set is supplied
-   vertexSet(v : List(PrimitiveArray(F))) : % ==
-       v
-
-   -- return dimension of underlying space
-   -- in this case assume its how many numbers used to specify a point
-   dimension(a : %) : NNI ==
-       res : NNI := 0
-       for b in a repeat
-           if #b > res then res := #b
-       res
-
-   -- return the maximum number of faces
-   maxFaces(a : %) : NNI ==
-       #a
-
-   -- set the maximum number of faces
-   setMaxFaces(a : %, b : NNI) : Void ==
-       if #a <= b then return void
-       error "too few coordinates"
-       void
-
-   -- disjoint union of two vertex sets
-   join(a : %, b : %) : % ==
-       concat(a, b)
-
-   -- Cartesian product of two vertex sets
-   prod(a : %, b : %) : % ==
-       a
-
-   -- output
-   coerce(s : %) : OutputForm ==
-       if empty?(s) then return bracket(empty()$OutputForm)
-       mat := []$List(List(OutputForm))
-       for a in s repeat
-           row := []$List(OutputForm)
-           if empty?(members(a))$List(F) then
-               row := concat(row, bracket(empty()$OutputForm))$List(OutputForm)
-           else
-               for b in members(a) repeat
-                   row := concat(row, b::OutputForm)$List(OutputForm)
-           mat := concat(mat, row)
-       matrix(mat)
-
-)if false
-\section{Vertex Set Abstract}
-
-This is VertexSet for an abstract simplicial complex. In this case
-each vertex is represented by an index without any underlying coordinates.
-
-)endif
-
-)abbrev domain VERTSA VertexSetAbstract
-++ Author: Martin Baker
-++ Description:
-++   An indexed set of abstract vertices without real coordinates.
-++   for more documentation see:
-++   http://www.euclideanspace.com/prog/scratchpad/mycode/topology/simplex/
-++ Date Created: Dec 2015
-++ Basic Operations:
-++ Related packages:
-++ Related categories: VertexSet
-++ Related Domains: VertexSetCoord
-++ Also See:
-++ AMS Classifications:
-++ Keywords:
-++ Examples:
-++ References:
-
-VertexSetAbstract() : Exports == Impl where
-  NNI==> NonNegativeInteger
-  x<<y ==> hconcat(x::OutputForm, y::OutputForm)
-
-  Exports ==> VertexSet() with
-    vertexSeta : (d : NNI) -> %
-      ++ constructor for abstract vertex set
-
-  Impl ==> add
-
-   -- Representation holds number of vertices, it is wrapped in a Reference
-   -- because, otherwise, it would be immutable.
-   Rep := Reference(NNI)
-
-   -- constructor for abstract vertex set
-   vertexSeta(d : NNI) : % ==
-       ref(d)
-
-   -- return the maximum number of faces
-   maxFaces(a : %) : NNI ==
-       deref(a)
-
-   -- set the maximum number of faces
-   setMaxFaces(a : %, b : NNI) : Void ==
-       setref(a, b)
-       void
-
-   -- disjoint union of two vertex sets
-   join(a : %, b : %) : % ==
-       ref(deref(a) + deref(b))
-
-   -- product of two vertex sets
-   prod(a : %, b : %) : % ==
-       ref(deref(a)*deref(b))
-
-   -- output
-   coerce(s : %) : OutputForm == outputForm(deref(s) pretend NNI)$OutputForm
-
-)if false
 \section{Oriented Facets Category}
 
 The aim of this category is to represent different types of facet, such as,
@@ -1462,7 +1290,7 @@ DeRhamComplex?
 ++ Basic Operations:
 ++ Related packages:
 ++ Related categories:
-++ Related Domains:
+++ Related Domains: CoChainComplex
 ++ Also See:
 ++ AMS Classifications:
 ++ Keywords:
@@ -1473,11 +1301,9 @@ ChainComplex() : Exports == Impl where
   NNI==> NonNegativeInteger
   x<<y ==> hconcat(x::OutputForm, y::OutputForm)
 
-  Exports ==> VertexSet() with
+  Exports ==> SetCategory() with
     chainComplex : (v : List(Matrix(Integer))) -> %
       ++ constructor
-    cochainComplex : (a : %) -> List(Union(Matrix(Fraction(Integer)), "failed"))
-      ++ construct co chain by inverting matrices
     validate : (a : %) -> Boolean
       ++ true if this is a valid chain complex, that is:
       ++ 1) maps compose
@@ -1509,16 +1335,6 @@ ChainComplex() : Exports == Impl where
                a(i, j) := AInt(i, j)::Fraction(Integer)
        a
 
-   -- construct co chain by inverting matrices
-   cochainComplex(a : %) : List(Union(Matrix(Fraction(Integer)), "failed")) ==
-       res := []$List(Union(Matrix(Fraction(Integer)), "failed"))
-       for m in a repeat
-           mi : Union(Matrix(Fraction(Integer)), "failed") :=
-               square?(m) => invertIfCan(matrixOverRational(m))
-               "failed"
-           res := concat(res, mi)
-       reverse(res)
-
    -- true if this is a valid chain complex, that is:
    -- 1) maps compose
    -- 2) product of adjacent maps is zero
@@ -1544,6 +1360,104 @@ ChainComplex() : Exports == Impl where
    -- calculate homology using SmithNormalForm
    homology(a : %) : List(Homology) ==
        --print("ChainComplex homology("  << a << ")")
+       res := []$List(Homology)
+       prev := empty()$Matrix(Integer)
+       notFirst : Boolean := false
+       for m1 in a repeat
+           if notFirst then
+               --print("chainComplex: " << nrows(m1) << "*" << ncols(m1) <<_
+               --  " " << nrows(prev) << "*" << ncols(prev))
+               m2 : Homology := homologyGroup(m1, prev)
+               res := concat(res, m2)
+           notFirst := true
+           prev := m1
+       res
+
+   -- output
+   coerce(s : %) : OutputForm ==
+       lst : List(OutputForm) := [x::OutputForm for x in s]
+       commaSeparate(lst)
+
+)abbrev domain COCHNC CoChainComplex
+++ Author: Martin Baker
+++ Description:
+++   Delta Complexes are defined by a sequence of 'face maps', These can
+++   be represented by a list of matrices.
+++   for more documentation see:
+++   http://www.euclideanspace.com/prog/scratchpad/mycode/topology/
+++ Date Created: Jan 2016
+++ Basic Operations:
+++ Related packages:
+++ Related categories:
+++ Related Domains: ChainComplex
+++ Also See:
+++ AMS Classifications:
+++ Keywords:
+++ Examples:
+++ References:
+
+CoChainComplex() : Exports == Impl where
+  NNI==> NonNegativeInteger
+  x<<y ==> hconcat(x::OutputForm, y::OutputForm)
+
+  Exports ==> SetCategory() with
+    coChainComplex : (v : List(Matrix(Integer))) -> %
+      ++ constructor
+    validate : (a : %) -> Boolean
+      ++ true if this is a valid chain complex, that is:
+      ++ 1) maps compose
+      ++ 2) product of adjacent coboundary maps is zero
+    homology : (a : %) -> List(Homology)
+      ++ calculate homology using SmithNormalForm
+
+  Impl ==> add
+
+   -- Representation contains sequence of face maps in matrix
+   -- form
+   Rep := List(Matrix(Integer))
+
+   -- constructor
+   coChainComplex(v : List(Matrix(Integer))) : % ==
+       v
+
+   -- local function to convert from matrix over int to matrix over rational
+   matrixOverRational(AInt : Matrix(Integer)) : Matrix(Fraction(Integer)) ==
+       -- It is important that zero dimensions 0*0 and n*0 retain these
+       -- dimenstions
+       -- so first handle this as a special case:
+       ARows : NNI := nrows(AInt)
+       ACols : NNI := ncols(AInt)
+       a : Matrix(Fraction(Integer)) := new(ARows, ACols, 0::Fraction(Integer))
+       for i in 1..ARows repeat
+           for j in 1..ACols repeat
+               a(i, j) := AInt(i, j)::Fraction(Integer)
+       a
+
+   -- true if this is a valid chain complex, that is:
+   -- 1) maps compose
+   -- 2) product of adjacent maps is zero
+   validate(a : %) : Boolean ==
+       len : NNI := #a
+       if len < 2 then return true
+       last : Matrix(Integer) := a.1
+       for x in 2..len repeat
+           m : Matrix(Integer) := a.x
+           if maxRowIndex(m) ~= maxColIndex(last) then
+               print(message("validate failed nRows=") << maxRowIndex(m) <<
+                   message(" not equal to nCols ") << maxColIndex(last))
+               return false
+           prod : Matrix(Integer) := last*m
+           if not zero?(prod) then
+               print(message(
+                  "validate failed: product of adjacent maps should be zero")
+                   << last << message(" * ") << m << message(" = ") << prod)
+               return false
+           last := m
+       true
+
+   -- calculate homology using SmithNormalForm
+   homology(a : %) : List(Homology) ==
+       --print("CoChainComplex homology("  << a << ")")
        res := []$List(Homology)
        prev := empty()$Matrix(Integer)
        notFirst : Boolean := false
@@ -1602,14 +1516,14 @@ DeltaComplex and is discussed later.
 ++ Examples:
 ++ References:
 
-FiniteSimplicialComplex(VS : VertexSet) : Exports == Impl where
+FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
   NNI==> NonNegativeInteger
   x<<y ==> hconcat(x::OutputForm, y::OutputForm)
 
   Exports ==> SetCategory() with
-    simplicialComplex : (v : VS, fs : List(List(NNI))) -> %
+    simplicialComplex : (v : List(VS), fs : List(List(NNI))) -> %
       ++ constructor where the simplices are supplied
-    simplicialComplex : (v : VS) -> %
+    simplicialComplex : (v : List(VS)) -> %
       ++ construct empty simplex
     simplicialComplex : (dc : DeltaComplex(VS)) -> %
       ++ construct FiniteSimplicialComplex from DeltaComplex.
@@ -1617,6 +1531,8 @@ FiniteSimplicialComplex(VS : VertexSet) : Exports == Impl where
       ++ Add a facet to this simplex
       ++ If the facet is also in the list then, dont append, instead
       ++ change the multiplier.
+    maxIndex : (s : %) -> NNI
+      ++ find the maximum index.
     grade : (s : %) -> List(List(OrientedFacet))
       ++ a function to grade simplexes according to their lengths.
       ++ This nests the lists according to their length.
@@ -1682,6 +1598,9 @@ FiniteSimplicialComplex(VS : VertexSet) : Exports == Impl where
     chain : (s : %) -> ChainComplex
       ++ returns a matrix sequence representing the face maps
       ++ in linear algebra form
+    coChain : (s : %) -> CoChainComplex
+      ++ returns a matrix sequence representing the face maps
+      ++ in linear algebra form
     homology : (s : %) -> List(Homology)
       ++ calculate homology using SmithNormalForm
     coerce : (s : %) -> DeltaComplex(VS)
@@ -1700,10 +1619,10 @@ FiniteSimplicialComplex(VS : VertexSet) : Exports == Impl where
    --  NNI is an index.
    --  The inner list represents an individual simplex.
    --  The outer list holds a list of simplexes.
-   Rep := Record(VERTSET : VS, SIMP : List(OrientedFacet))
+   Rep := Record(VERTSET : List(VS), SIMP : List(OrientedFacet))
 
    -- constructor where the vertex set and simplices are supplied
-   simplicialComplex(v : VS, fs : List(List(NNI))) : % ==
+   simplicialComplex(v : List(VS), fs : List(List(NNI))) : % ==
        --print("simplicialComplex(" << fs << ")")
        res := []$List(OrientedFacet)
        for f in fs repeat
@@ -1712,15 +1631,15 @@ FiniteSimplicialComplex(VS : VertexSet) : Exports == Impl where
        [v, res]
 
    -- construct empty simplex
-   simplicialComplex(v : VS) : % ==
+   simplicialComplex(v : List(VS)) : % ==
        res := []$List(OrientedFacet)
        [v, res]
 
    -- construct FiniteSimplicialComplex from DeltaComplex.
    simplicialComplex(dc : DeltaComplex(VS)) : % ==
        --print("simplicialComplex(" << dc << ")")
-       dcrep := dc pretend Record(VERTSET : VS, MAPS : List(List(List(Integer))))
-       vertset : VS := dcrep.VERTSET
+       dcrep := dc pretend Record(VERTSET : List(VS),NUMPOINTS : NNI, MAPS : List(List(List(Integer))))
+       vertset : List(VS) := dcrep.VERTSET
        maps : List(List(List(Integer))) := dcrep.MAPS
        -- res list contains list which will become the result
        res := []$List(OrientedFacet)
@@ -1779,6 +1698,15 @@ FiniteSimplicialComplex(VS : VertexSet) : Exports == Impl where
                res2 := concat(res2, orf)
        [a.VERTSET, res2]
 
+   -- find the maximum index value.
+   maxIndex(s : %) : NNI ==
+       res : NNI := 0
+       facs : List(OrientedFacet) := s.SIMP
+       for fac in facs repeat
+           m := maxIndex(fac)
+           if m>res then res := m
+       res
+
    -- A function to grade simplexes according to their lengths.
    -- This nests the lists according to their length.
    -- Verticies, edges, trianges and so on.
@@ -1801,7 +1729,7 @@ FiniteSimplicialComplex(VS : VertexSet) : Exports == Impl where
 
    -- sort faces to be in numeric order
    sort(s : %) : % ==
-       v : VS := s.VERTSET
+       v : List(VS) := s.VERTSET
        fs : List(OrientedFacet) := s.SIMP -- list of faces
        [v, sort(fs)]
 
@@ -1937,7 +1865,6 @@ FiniteSimplicialComplex(VS : VertexSet) : Exports == Impl where
 
    -- Forms disjoint union of two simplicial complexes.
    simplicialJoin(a : %, b : %) : % ==
-       c : VS := join(a.VERTSET, b.VERTSET)
        res : % := copy(a)
        for x in b.SIMP repeat
            res := addSimplex(res, x)
@@ -2024,6 +1951,13 @@ FiniteSimplicialComplex(VS : VertexSet) : Exports == Impl where
        cc : ChainComplex := chain(dc)$DeltaComplex(VS)
        cc
 
+   -- returns a matrix sequence representing the face maps
+   -- in linear algebra form
+   coChain(s : %) : CoChainComplex ==
+       dc : DeltaComplex(VS) := deltaComplex(s pretend FiniteSimplicialComplex(VS))
+       cc : CoChainComplex := coChain(dc)$DeltaComplex(VS)
+       cc
+
    -- calculate homology using SmithNormalForm
    homology(s : %) : List(Homology) ==
        dc : DeltaComplex(VS) := deltaComplex(s pretend FiniteSimplicialComplex(VS))
@@ -2040,7 +1974,9 @@ FiniteSimplicialComplex(VS : VertexSet) : Exports == Impl where
    product(a : %, b : %) : % ==
        simpsa : List(OrientedFacet) := a.SIMP
        simpsb : List(OrientedFacet) := b.SIMP
-       vs : VS := prod(a.VERTSET, b.VERTSET)
+--       vs : VS := prod(a.VERTSET, b.VERTSET)
+-- temp fix *************************************************
+       vs : List(VS) := a.VERTSET
        res := []$List(ProductFacet)
        for simpa in simpsa repeat
            for simpb in simpsb repeat
@@ -2165,19 +2101,21 @@ The representation is in two parts:
 ++ Examples:
 ++ References:
 
-FiniteCubicalComplex(VS : VertexSet) : Exports == Impl where
+FiniteCubicalComplex(VS : AbelianGroup) : Exports == Impl where
   NNI==> NonNegativeInteger
   x<<y ==> hconcat(x::OutputForm, y::OutputForm)
 
   Exports ==> SetCategory() with
-    cubicalComplex : (v : VS, f : List(CubicalFacet)) -> %
+    cubicalComplex : (v : List(VS), f : List(CubicalFacet)) -> %
       ++ constructor where the cubes are supplied
-    cubicalComplex : (v : VS, f : List(List(Segment(Integer)))) -> %
+    cubicalComplex : (v : List(VS), f : List(List(Segment(Integer)))) -> %
       ++ constructor where the cubes are supplied
-    cubicalComplex : (v : VS, f : List(List(List(Integer)))) -> %
+    cubicalComplex : (v : List(VS), f : List(List(List(Integer)))) -> %
       ++ constructor where the cubes are supplied
-    cubicalComplex : (v : VS) -> %
+    cubicalComplex : (v : List(VS)) -> %
       ++ construct empty cubical complex
+    maxIndex : (s : %) -> NNI
+      ++ find the maximum index.
     addCube : (a : %, f : CubicalFacet) -> %
       ++ Add a facet to this simplex
       ++ If the facet is also in the list then, dont append, instead
@@ -2233,10 +2171,10 @@ FiniteCubicalComplex(VS : VertexSet) : Exports == Impl where
    -- a vertex set, here represented as a vertex list so that we can
    -- index it.
    -- Also a list of hypercubes.
-   Rep := Record(VERTSET : VS, CUBE : List(CubicalFacet))
+   Rep := Record(VERTSET : List(VS), CUBE : List(CubicalFacet))
 
    -- constructor where the vertex set and cubes are supplied
-   cubicalComplex(v : VS, fs : List(CubicalFacet)) : % ==
+   cubicalComplex(v : List(VS), fs : List(CubicalFacet)) : % ==
        --res := []$List(CubicalFacet)
        --for f in fs repeat
        --  res := concat(res, cubicalFacet(1, f))
@@ -2244,7 +2182,7 @@ FiniteCubicalComplex(VS : VertexSet) : Exports == Impl where
        [v, fs]
 
    -- constructor where the vertex set and cubes are supplied
-   cubicalComplex(v : VS, fs : List(List(Segment(Integer)))) : % ==
+   cubicalComplex(v : List(VS), fs : List(List(Segment(Integer)))) : % ==
        res := []$List(CubicalFacet)
        for f in fs repeat
            res := concat(res, cubicalFacet(1, f))
@@ -2252,7 +2190,7 @@ FiniteCubicalComplex(VS : VertexSet) : Exports == Impl where
        cubicalComplex(v, res)
 
    -- constructor where the vertex set and cubes are supplied
-   cubicalComplex(v : VS, fs : List(List(List(Integer)))) : % ==
+   cubicalComplex(v : List(VS), fs : List(List(List(Integer)))) : % ==
        res := []$List(CubicalFacet)
        for f in fs repeat
            res := concat(res, cubicalFacet(1, f))
@@ -2260,12 +2198,22 @@ FiniteCubicalComplex(VS : VertexSet) : Exports == Impl where
        cubicalComplex(v, res)
 
    -- construct empty cubical complex
-   cubicalComplex(v : VS) : % ==
+   cubicalComplex(v : List(VS)) : % ==
        res := []$List(CubicalFacet)
        [v, res]
 
+   -- find the maximum index value.
+   maxIndex(s : %) : NNI ==
+       res : NNI := 0
+       facs : List(CubicalFacet) := s.CUBE
+       for fac in facs repeat
+           i:List(Segment(Integer)) := getIntervals(fac)
+           m := #i
+           if m>res then res := m
+       res
+
    -- Add a facet to this cubical complex
-   -- If the facet is also in the list then: add the multipliers.
+   -- If the facet is also in the list then add the multipliers.
    addCube(a : %, f : CubicalFacet) : % ==
        res : List(CubicalFacet) := a.CUBE
        res2 := []$List(CubicalFacet)
@@ -2393,7 +2341,9 @@ FiniteCubicalComplex(VS : VertexSet) : Exports == Impl where
    product(a : %, b : %) : % ==
        cubesa : List(CubicalFacet) := a.CUBE
        cubesb : List(CubicalFacet) := b.CUBE
-       vs : VS := prod(a.VERTSET, b.VERTSET)
+       vs : List(VS) := a.VERTSET
+--       vs : VS := prod(a.VERTSET, b.VERTSET)
+-- temp fix *************************************************
        res := []$List(CubicalFacet)
        for cubea in cubesa repeat
            for cubeb in cubesb repeat
@@ -2512,12 +2462,12 @@ Therefore the following alternative representation can be used instead.
 ++ Examples:
 ++ References:
 
-DeltaComplex(VS : VertexSet) : Exports == Impl where
+DeltaComplex(VS : AbelianGroup) : Exports == Impl where
   NNI==> NonNegativeInteger
   x<<y ==> hconcat(x::OutputForm, y::OutputForm)
 
   Exports ==> SetCategory() with
-    deltaComplex : (v : VS, f : List(List(List(Integer)))) -> %
+    deltaComplex : (v : List(VS),numPoints:NNI , f : List(List(List(Integer)))) -> %
       ++ constructor where the simplices are supplied
     deltaComplex : (fsc : FiniteSimplicialComplex(VS)) -> %
       ++ construct from FiniteSimplicialComplex. This builds indexes of
@@ -2535,6 +2485,9 @@ DeltaComplex(VS : VertexSet) : Exports == Impl where
       ++ one dimentional faces (edges), n=2 returns
       ++ two dimentional faces (triamgles), and so on.
     chain : (s : %) -> ChainComplex
+      ++ returns a matrix sequence representing the face maps
+      ++ in linear algebra form
+    coChain : (s : %) -> CoChainComplex
       ++ returns a matrix sequence representing the face maps
       ++ in linear algebra form
     oneSkeleton : (s : %) -> UndirectedGraph(NNI)
@@ -2561,10 +2514,10 @@ DeltaComplex(VS : VertexSet) : Exports == Impl where
    -- the next lower map.
    -- Since edges, triangles, tetrahedrons, etc. are oriented we use
    -- a positive or negative index to indicate winding direction.
-   Rep := Record(VERTSET : VS, MAPS : List(List(List(Integer))))
+   Rep := Record(VERTSET : List(VS),NUMPOINTS : NNI, MAPS : List(List(List(Integer))))
 
    -- constructor where the vertex set and simplices are supplied
-   deltaComplex(v : VS, f : List(List(List(Integer)))) : % == [v, f]
+   deltaComplex(v : List(VS),numPoints:NNI, f : List(List(List(Integer)))) : % == [v, numPoints, f]
 
    -- construct from FiniteSimplicialComplex. This builds indexes of
    -- edges, triangles and so on.
@@ -2615,10 +2568,11 @@ DeltaComplex(VS : VertexSet) : Exports == Impl where
                    map1 := cons(reverse!(newIndexes), map1)
            faceMaps := cons(reverse!(map1), faceMaps)
            previousFaceList := gradeList
-       vs : VS := (fsc pretend Record(VERTSET : VS,
+       vs : List(VS) := (fsc pretend Record(VERTSET : List(VS),
                                       SIMP : List(List(NNI)))).VERTSET
        --print("deltaComplex faceMaps=" << faceMaps )
-       [vs, reverse!(faceMaps)]
+       m := maxIndex(fsc)
+       [vs,m, reverse!(faceMaps)]
 
    -- construct from FiniteCubicalComplex. This builds indexes of
    -- edges, squares and so on.
@@ -2635,12 +2589,12 @@ DeltaComplex(VS : VertexSet) : Exports == Impl where
        -- now change base indexed to heirarcical indexed
        faceMaps := []$List(List(List(Integer)))
        previousFaceList := first(allFacetsGraded)
-       vs : VS
-       if VS is VertexSetAbstract then
-           vs := vertexSeta(#previousFaceList)$VertexSetAbstract pretend VS
-       else
-           error "deltaComplex: can only handle cubical complexes "
-                 "with abstract vertex set"
+--       vs : VS
+--       if VS is VertexSetAbstract then
+--           vs := vertexSeta(#previousFaceList)$VertexSetAbstract pretend VS
+--       else
+--           error "deltaComplex: can only handle cubical complexes "
+--                 "with abstract vertex set"
        for gradeList in allFacetsGraded for grn in 1..(#allFacetsGraded) repeat
            -- start with a list of empty lists
            grn = 1 => "iterate"
@@ -2669,21 +2623,28 @@ DeltaComplex(VS : VertexSet) : Exports == Impl where
            faceMaps := cons(reverse!(map1), faceMaps)
            previousFaceList := gradeList
        --print("deltaComplex faceMaps=" << faceMaps )
-       [vs, reverse!(faceMaps)]
+       vs : List(VS) := (fsc pretend Record(VERTSET : List(VS),
+                                      SIMP : List(List(NNI)))).VERTSET
+       m := maxIndex(fsc)
+       [vs,m, reverse!(faceMaps)]
 
    -- a simplical complex with one link
    link(a : NNI, b : NNI) : % ==
-       vs : VS := (vertexSeta(2::NNI)$VertexSetAbstract) pretend VS
+--       vs : VS := (vertexSeta(2::NNI)$VertexSetAbstract) pretend VS
+       vs : List(VS) := []
        simp : List(List(List(Integer))) := [[[a, b]]]
-       [vs, simp]
+-- temp fix ****************************************************
+       [vs,2, simp]
 
    -- a simplical complex with one triangle
    triangle(a : NNI, b : NNI, c : NNI):% ==
-       vs : VS := (vertexSeta(3::NNI)$VertexSetAbstract) pretend VS
+--       vs : VS := (vertexSeta(3::NNI)$VertexSetAbstract) pretend VS
+       vs : List(VS) := []
        edges : List(List(Integer)) := [[a, b], [a, c], [b, c]]
        triangles : List(List(Integer)) := [[a, -b, c]]
        simp : List(List(List(Integer))) := [edges, triangles]
-       [vs, simp]
+-- temp fix ****************************************************
+       [vs,3, simp]
 
    -- returns an individual face map specified by n.
    -- Where 'n' is the dimension required, so n=1 returns
@@ -2699,7 +2660,7 @@ DeltaComplex(VS : VertexSet) : Exports == Impl where
    chain(s : %) : ChainComplex ==
        res := []$List(Matrix(Integer))
        maps1 : List(List(List(Integer))) := s.MAPS
-       n_rows : NNI := maxFaces(s.VERTSET)
+       n_rows : NNI := s.NUMPOINTS
        res := cons(zero(1, n_rows), res)
        for faces in maps1 repeat
            -- print("chain faces=" << faces << " res=" << res)
@@ -2723,6 +2684,35 @@ DeltaComplex(VS : VertexSet) : Exports == Impl where
        res := cons(m, res)
        chainComplex(reverse!(res))
 
+   -- returns a matrix sequence representing the face maps
+   -- in linear algebra form
+   coChain(s : %) : CoChainComplex ==
+       res := []$List(Matrix(Integer))
+       maps1 : List(List(List(Integer))) := s.MAPS
+       n_rows : NNI := s.NUMPOINTS
+       res := cons(zero(n_rows, 1), res)
+       for faces in maps1 repeat
+           -- print("cochain faces=" << faces << " res=" << res)
+           n_cols := #(faces)
+           -- print("cochain n_rows=" << n_rows << " n_cols=" << n_cols)
+           m : Matrix(Integer) := zero(n_rows, n_cols)
+           --print("cochain 2 nrows=" << nrows(m) << " ncols=" << ncols(m))
+           for u in faces for nu in 1..(#faces) repeat
+               for v in u repeat
+                   v2 : Integer := abs(v)
+                   --print("cochain(" << maps1 << ") row=" << nu << " col="
+                   --      << v2 << " nRows=" << nRows << " nCols=" << nCols)
+                   ele : Integer := (v > 0 => 1; -1)
+                   -- if even?(nv) then ele := -1
+                   setelt!(m, v2, nu, qelt(m, v2, nu) + ele)
+           res := cons(transpose(m), res)
+           n_rows := n_cols
+       -- add matrix with zero cols
+       --print("cochain nRows=" << nCols << " nCols=" << 0)
+       m : Matrix(Integer) := new(n_rows, 0, 0)
+       res := cons(transpose(m), res)
+       coChainComplex(reverse!(res))
+
    -- calculate homology using SmithNormalForm
    homology(a : %) : List(Homology) ==
        --print("DeltaComplex homology("  << a << ")")
@@ -2739,7 +2729,7 @@ DeltaComplex(VS : VertexSet) : Exports == Impl where
        GS := UndirectedGraph(NNI)
        nodes := []$List(OBJT)
        edges := []$List(ARROW)
-       m : NNI := maxFaces(s.VERTSET)
+       m : NNI := s.NUMPOINTS
        edgeIndexes : List(List(Integer)) := first(s.MAPS)
        for x in edgeIndexes repeat
            --print("oneSkeleton x=" << x)
@@ -2749,9 +2739,10 @@ DeltaComplex(VS : VertexSet) : Exports == Impl where
            if to1 > m then m := to1
            y : ARROW := ["x", 0::NNI, from1, to1, 0::Integer, 0::Integer, []]
            edges := concat(edges, y)$List(ARROW)
-       setMaxFaces(s.VERTSET, m)
+--       setMaxFaces(s.VERTSET, m)
+-- temp fix ***********************************
        --print("oneSkeleton nodes=" << nodes << " edges=" << edges  << _
-       --     " maxVerts=" << m  << " maxVerts=" << maxFaces(s.VERTSET))
+       --     " maxVerts=" << m  << " maxVerts=" << s.NUMPOINTS)
        for m1 in 1..m repeat
            nodes := concat(nodes, [m1, 0::NNI, 0::NNI])$List(OBJT)
        undirectedGraph(nodes, edges)$GS
@@ -2916,42 +2907,42 @@ NNI==> NonNegativeInteger
 x<<y ==> hconcat(x::OutputForm, y::OutputForm)
 
 SimplicialComplexFactory() : with
-  sphereSolid : (dim : NNI) -> FiniteSimplicialComplex(VertexSetAbstract)
+  sphereSolid : (dim : NNI) -> FiniteSimplicialComplex(Integer)
     ++ Generate a simplicial complex equivalent to a solid hyper-sphere. That
     ++ is, a solid volume with no holes in it, so we use a single n-dimensional
     ++ simplex.
-  sphereSurface : (dim : NNI) -> FiniteSimplicialComplex(VertexSetAbstract)
+  sphereSurface : (dim : NNI) -> FiniteSimplicialComplex(Integer)
     ++ Generate a simplicial complex equivalent to the surface of a hyper-sphere.
     ++ That is, the surface of a volume with no holes in it, so we use a minimal
     ++ triangulation of the faces of a single simplex.
-  torusSurface : () -> FiniteSimplicialComplex(VertexSetAbstract)
+  torusSurface : () -> FiniteSimplicialComplex(Integer)
     ++ generate a minimal triangulation of the surface of an 3-dimensional torus.
-  band : () -> FiniteSimplicialComplex(VertexSetAbstract)
+  band : () -> FiniteSimplicialComplex(Integer)
     ++ Generate a minimal triangulation of the surface of a cylinder without ends
-  moebiusBand : () -> FiniteSimplicialComplex(VertexSetAbstract)
+  moebiusBand : () -> FiniteSimplicialComplex(Integer)
     ++ Generate a minimal triangulation of the surface of a Moebius band.
     ++ A one sided surface with a single external boundary line.
-  projectivePlane : () -> FiniteSimplicialComplex(VertexSetAbstract)
+  projectivePlane : () -> FiniteSimplicialComplex(Integer)
     ++ Generate a minimal triangulation of the surface of a projective plane.
     ++ A one sided surface which cannot be embedded in 3D space without
     ++ intersecting itself. There are no external boundaries, every edge
     ++ connects two faces.
     ++ (A punctured projective plane is equivalent to a Moebius band)
-  kleinBottle : () -> FiniteSimplicialComplex(VertexSetAbstract)
+  kleinBottle : () -> FiniteSimplicialComplex(Integer)
     ++ generate a minimal triangulation of the surface of a Klein bottle.
-  dunceHat : () -> FiniteSimplicialComplex(VertexSetAbstract)
+  dunceHat : () -> FiniteSimplicialComplex(Integer)
     ++ Generate a minimal triangulation of dunce hat.
 
  == add
 
-  ASIMP ==> FiniteSimplicialComplex(VertexSetAbstract)
+  ASIMP ==> FiniteSimplicialComplex(Integer)
 
   -- generate a simplicial complex equivalent to a solid hyper-sphere. That
   -- is, a solid volume with no holes in it, so we use a single n-dimensional
   -- simplex.
-  sphereSolid(dim : NNI) : FiniteSimplicialComplex(VertexSetAbstract) ==
+  sphereSolid(dim : NNI) : FiniteSimplicialComplex(Integer) ==
       v1 : List(List(NNI)) := [[n for n in 1..(dim + 1)]]
-      vs1 : VertexSetAbstract := vertexSeta(dim + 1)
+      vs1 : List(Integer) := [] -- dim + 1
       r := simplicialComplex(vs1, v1)$ASIMP
       --print("sphereSolid=" << r)
       r
@@ -2959,62 +2950,62 @@ SimplicialComplexFactory() : with
   -- generate a simplicial complex equivalent to the surface of a hyper-sphere.
   -- That is, the surface of a volume with no holes in it, so we use a minimal
   -- triangulation of the faces of a single simplex.
-  sphereSurface(dim : NNI) : FiniteSimplicialComplex(VertexSetAbstract) ==
+  sphereSurface(dim : NNI) : FiniteSimplicialComplex(Integer) ==
       s := sphereSolid(dim)
       r := delta(s)
       --print("sphereSurface=" << r)
       r
 
   -- generate a minimal triangulation of the surface of an 3-dimensional torus.
-  torusSurface() : FiniteSimplicialComplex(VertexSetAbstract) ==
+  torusSurface() : FiniteSimplicialComplex(Integer) ==
       v1 : List(List(NNI)) := ([[1, 2, 3], [2, 3, 5], [2, 4, 5], [2, 4, 7],
          [1, 2, 6], [2, 6, 7], [3, 4, 6], [3, 5, 6], [3, 4, 7], [1, 3, 7],
          [1, 4, 5], [1, 4, 6], [5, 6, 7], [1, 5, 7]])
-      vs1 : VertexSetAbstract := vertexSeta(7::NNI)
+      vs1 : List(Integer) := [] --  7
       r := simplicialComplex(vs1, v1)$ASIMP
       --print("torusSurface=" << r)
       r
 
   -- generate a minimal triangulation of the surface of a cylinder without ends
-  band() : FiniteSimplicialComplex(VertexSetAbstract) ==
+  band() : FiniteSimplicialComplex(Integer) ==
       v1 : List(List(NNI)) := ([[1, 2, 3], [1, 2, 6], [1, 5, 6],
                                [2, 3, 4], [3, 4, 5], [4, 5, 6]])
-      vs1 : VertexSetAbstract := vertexSeta(6::NNI)
+      vs1 : List(Integer) := [] -- = 6
       r := simplicialComplex(vs1, v1)$ASIMP
       r
 
   -- generate a minimal triangulation of the surface of a Moebius band.
-  moebiusBand() : FiniteSimplicialComplex(VertexSetAbstract) ==
+  moebiusBand() : FiniteSimplicialComplex(Integer) ==
       v1 : List(List(NNI)) := ([[1, 2, 3], [2, 3, 4], [3, 4, 5],
                                [1, 4, 5], [1, 2, 5]])
-      vs1 : VertexSetAbstract := vertexSeta(5::NNI)
+      vs1 : List(Integer) := [] -- 5
       r := simplicialComplex(vs1, v1)$ASIMP
       r
 
   -- generate a minimal triangulation of the surface of a projective plane.
   -- (A punctured projective plane is equivalent to a Moebius band)
-  projectivePlane() : FiniteSimplicialComplex(VertexSetAbstract) ==
+  projectivePlane() : FiniteSimplicialComplex(Integer) ==
       v1 : List(List(NNI)) := ([[1, 2, 3], [1, 3, 4], [1, 2, 6], [1, 5, 6],
          [1, 4, 5], [2, 3, 5], [2, 4, 5], [2, 4, 6], [3, 4, 6], [3, 5, 6]])
-      vs1 : VertexSetAbstract := vertexSeta(6::NNI)
+      vs1 : List(Integer) := [] -- 6
       r := simplicialComplex(vs1, v1)$ASIMP
       r
 
   -- generate a minimal triangulation of the surface of a Klein bottle.
-  kleinBottle() : FiniteSimplicialComplex(VertexSetAbstract) ==
+  kleinBottle() : FiniteSimplicialComplex(Integer) ==
       v1 : List(List(NNI)) := ([[3, 4, 8], [2, 3, 4], [2, 4, 6], [2, 6, 8],
          [2, 5, 8], [3, 5, 7], [2, 3, 7], [2, 7, 1], [2, 5, 1], [3, 5, 1],
          [4, 5, 8], [4, 5, 7], [4, 6, 7], [6, 7, 1], [3, 6, 1], [3, 6, 8]])
-      vs1 : VertexSetAbstract := vertexSeta(8::NNI)
+      vs1 : List(Integer) := [] -- 8
       r := simplicialComplex(vs1, v1)$ASIMP
       r
 
-  dunceHat() : FiniteSimplicialComplex(VertexSetAbstract) ==
+  dunceHat() : FiniteSimplicialComplex(Integer) ==
       v1 : List(List(NNI)) := ([[1, 2, 8], [2, 3, 8], [3, 7, 8], [1 ,3, 7],
          [1, 2, 7], [1, 6, 8], [1, 2, 6], [6, 7, 8], [2, 4, 6], [5, 6, 7],
          [2, 5, 7], [4, 5, 6], [2, 3, 4], [2, 3, 5], [1, 3, 4], [1, 4, 5],
          [1, 3, 5]])
-      vs1 : VertexSetAbstract := vertexSeta(8::NNI)
+      vs1 : List(Integer) := [] -- 8
       r := simplicialComplex(vs1, v1)$ASIMP
       r
 
@@ -3037,47 +3028,47 @@ NNI==> NonNegativeInteger
 x<<y ==> hconcat(x::OutputForm, y::OutputForm)
 
 DeltaComplexFactory() : with
-  circle : () -> DeltaComplex(VertexSetAbstract)
+  circle : () -> DeltaComplex(Integer)
     ++ Generate a minimal circle from an edge from vertex A to A.
-  dunceHat : () -> DeltaComplex(VertexSetAbstract)
+  dunceHat : () -> DeltaComplex(Integer)
     ++ generate a minimal dunceHat from 3 edges.
-  torusSurface : () -> DeltaComplex(VertexSetAbstract)
+  torusSurface : () -> DeltaComplex(Integer)
     ++ generate a minimal 3-dimensional torus surface.
-  projectiveSpace : Integer -> DeltaComplex(VertexSetAbstract)
+  projectiveSpace : Integer -> DeltaComplex(Integer)
     ++ Generate a minimal projective space.
-  kleinBottle : () -> DeltaComplex(VertexSetAbstract)
+  kleinBottle : () -> DeltaComplex(Integer)
     ++ generate a minimal Klein bottle.
 
  == add
 
-  DC ==> DeltaComplex(VertexSetAbstract)
+  DC ==> DeltaComplex(Integer)
 
   -- Generate a minimal circle from an edge from vertex A to A.
-  circle() : DeltaComplex(VertexSetAbstract) ==
-      vs1 := vertexSeta(1)$VertexSetAbstract
-      deltaComplex(vs1, [[[1, -1]]])$DC
+  circle() : DeltaComplex(Integer) ==
+      vs1 : List(Integer) := []
+      deltaComplex(vs1,1, [[[1, -1]]])$DC
 
   -- generate a minimal dunceHat from 3 edges.
-  dunceHat() : DeltaComplex(VertexSetAbstract) ==
-      vs1 := vertexSeta(1)$VertexSetAbstract
-      deltaComplex(vs1, [[[1, -1]], [[1, 1, -1]]])$DC
+  dunceHat() : DeltaComplex(Integer) ==
+      vs1 : List(Integer) := []
+      deltaComplex(vs1,1, [[[1, -1]], [[1, 1, -1]]])$DC
 
   -- generate a minimal torus.
-  torusSurface() : DeltaComplex(VertexSetAbstract) ==
-      vs1 := vertexSeta(1)$VertexSetAbstract
-      deltaComplex(vs1, [[[1, -1], [1, -1]], [[1, 2, -1, -2]]])$DC
+  torusSurface() : DeltaComplex(Integer) ==
+      vs1 : List(Integer) := []
+      deltaComplex(vs1,1, [[[1, -1], [1, -1]], [[1, 2, -1, -2]]])$DC
 
-  projectiveSpace(n : Integer) : DeltaComplex(VertexSetAbstract) ==
-      vs1 := vertexSeta(1)$VertexSetAbstract
+  projectiveSpace(n : Integer) : DeltaComplex(Integer) ==
+      vs1 : List(Integer) := []
       cl : List(List(List(Integer))) := []
       for i in 1..n repeat
           cl := cons([[1, (odd?(i) => -1; 1)]], cl)
-      deltaComplex(vs1, reverse!(cl))$DC
+      deltaComplex(vs1,1, reverse!(cl))$DC
 
   -- generate a minimal surface of a Klein bottle.
-  kleinBottle() : DeltaComplex(VertexSetAbstract) ==
-      vs1 := vertexSeta(1)$VertexSetAbstract
-      deltaComplex(vs1, [[[1, -1], [1, -1]], [[1, 2, 1, -2]]])$DC
+  kleinBottle() : DeltaComplex(Integer) ==
+      vs1 : List(Integer) := []
+      deltaComplex(vs1,1, [[[1, -1], [1, -1]], [[1, 2, 1, -2]]])$DC
 
 )if false
 \section{Cubical Complex Factory}
@@ -3124,28 +3115,28 @@ NNI==> NonNegativeInteger
 x<<y ==> hconcat(x::OutputForm, y::OutputForm)
 
 CubicalComplexFactory() : with
-  sphereSolid : (dim : NNI) -> FiniteCubicalComplex(VertexSetAbstract)
+  sphereSolid : (dim : NNI) -> FiniteCubicalComplex(Integer)
     ++ Generate a cubical complex equivalent to a solid hyper-sphere. That
     ++ is, a solid volume with no holes in it, so we use a single n-dimensional
     ++ cube.
-  sphereSurface : (dim : NNI) -> FiniteCubicalComplex(VertexSetAbstract)
+  sphereSurface : (dim : NNI) -> FiniteCubicalComplex(Integer)
     ++ Generate a cubical complex equivalent to the surface of a hyper-sphere.
     ++ That is, the surface of a volume with no holes in it, so we use the
     ++ faces of a single cube.
-  torusSurface : () -> FiniteCubicalComplex(VertexSetAbstract)
+  torusSurface : () -> FiniteCubicalComplex(Integer)
     ++ generate a cubical complex of the surface of an 3-dimensional torus.
-  band : () -> FiniteCubicalComplex(VertexSetAbstract)
+  band : () -> FiniteCubicalComplex(Integer)
     ++ Generate a cubical complex of the surface of a cylinder without ends
-  moebiusBand : () -> FiniteCubicalComplex(VertexSetAbstract)
+  moebiusBand : () -> FiniteCubicalComplex(Integer)
     ++ Generate a cubical complex of the surface of a Moebius band.
     ++ A one sided surface with a single external boundary line.
-  projectivePlane : () -> FiniteCubicalComplex(VertexSetAbstract)
+  projectivePlane : () -> FiniteCubicalComplex(Integer)
     ++ Generate a cubical complex of the surface of a projective plane.
     ++ A one sided surface which cannot be embedded in 3D space without
     ++ intersecting itself. There are no external boundaries, every edge
     ++ connects two faces.
     ++ (A punctured projective plane is equivalent to a Moebius band)
-  kleinBottle : () -> FiniteCubicalComplex(VertexSetAbstract)
+  kleinBottle : () -> FiniteCubicalComplex(Integer)
     ++ generate a cubical complex of the surface of a Klein bottle.
 
  == add
@@ -3153,41 +3144,41 @@ CubicalComplexFactory() : with
   -- generate a cubical complex equivalent to a solid hyper-sphere. That
   -- is, a solid volume with no holes in it, so we use a single n-dimensional
   -- cube.
-  sphereSolid(dim : NNI) : FiniteCubicalComplex(VertexSetAbstract) ==
-      ASIMP := FiniteCubicalComplex(VertexSetAbstract)
+  sphereSolid(dim : NNI) : FiniteCubicalComplex(Integer) ==
+      ASIMP := FiniteCubicalComplex(Integer)
       v1 : List(List(List(Integer))) := [[[1, 2] for n in 1..dim]]
-      vs1 : VertexSetAbstract := vertexSeta(dim)
+      vs1 : List(Integer) := []
       r := cubicalComplex(vs1, v1)$ASIMP
       r
 
   -- generate a cubical complex equivalent to the surface of a hyper-sphere.
   -- That is, the surface of a volume with no holes in it, so we use the
   -- faces of a single cube.
-  sphereSurface(dim : NNI) : FiniteCubicalComplex(VertexSetAbstract) ==
+  sphereSurface(dim : NNI) : FiniteCubicalComplex(Integer) ==
       s := sphereSolid(dim)
       r := delta(s)
       r
 
   -- generate a cubical complex of the surface of an 3-dimensional torus.
-  torusSurface() : FiniteCubicalComplex(VertexSetAbstract) ==
+  torusSurface() : FiniteCubicalComplex(Integer) ==
       a := sphereSurface(2)
       b := sphereSurface(2)
       product(a, b)
 
   -- generate a cubical complex of the surface of a cylinder without ends
-  band() : FiniteCubicalComplex(VertexSetAbstract) ==
+  band() : FiniteCubicalComplex(Integer) ==
       a := sphereSurface(2)
-      ASIMP := FiniteCubicalComplex(VertexSetAbstract)
+      ASIMP := FiniteCubicalComplex(Integer)
       v1:List(List(List(Integer))) := [[[1, 2]]]
-      vs1 : VertexSetAbstract := vertexSeta(2::NNI)
+      vs1 : List(Integer) := []
       b := cubicalComplex(vs1, [v1])$ASIMP
       product(a, b)
 
   -- generate a cubical complex of the surface of a projective plane.
   -- (A punctured projective plane is equivalent to a Moebius band)
   -- see [13] for details
-  projectivePlane() : FiniteCubicalComplex(VertexSetAbstract) ==
-      ASIMP := FiniteCubicalComplex(VertexSetAbstract)
+  projectivePlane() : FiniteCubicalComplex(Integer) ==
+      ASIMP := FiniteCubicalComplex(Integer)
       v1 : List(List(List(Integer))) := ([[[1, 2], [1, 1], [1, 1], [1, 2],
           [1, 1]], [[1, 2], [1, 1], [1, 1], [1, 1], [1, 2]], _
                     [[1, 1], [1, 2], [1, 2], [1, 1], [1, 1]], _
@@ -3208,283 +3199,10 @@ CubicalComplexFactory() : with
                     [[1, 1], [1, 1], [1, 2], [1, 2], [2, 2]], _
                     [[1, 1], [1, 1], [1, 2], [2, 2], [1, 2]], _
                     [[1, 1], [1, 1], [2, 2], [1, 2], [1, 2]]])
-      vs1 : VertexSetAbstract := vertexSeta(6::NNI)
+      vs1 : List(Integer) := []
       r := cubicalComplex(vs1, v1)$ASIMP
       --print("projectivePlane=" << r)
       r
-
-)if false
-\section{Testing and Validating this Code}
-
-SimplicialComplexTests contains tests SimplicialComplex and the
-other complexes and the code related to it.
-
-This is intended for regression testing.
-
-Some functions are very difficult to test, for example homotopy
-groups such as fundamentalGroup. The reason is that they do not
-have a canonical form, that is, there may be more than one
-correct result and none of them are better than the others and
-there is no general algorithm for testing if they are equal.
-
-So some change to the code may change the result but the result
-may be just as correct as the other result. So testing that
-fundamentalGroup generates a given output for a given input
-is not a useful test for correctness.
-
-I think that all we can do in this situation is to test
-fundamentalGroup with very simple inputs such as a
-topological sphere. This should always produce an empty
-presentation.
-)endif
-
-)abbrev package SIMPTEST SimplicialComplexTests
-++ Author: Martin Baker
-++ Date Created: March 2016
-++ Description:
-++  Provides functions to test SimplicialComplex related code.
-++  This is intended for regression testing.
-NNI==> NonNegativeInteger
-x<<y ==> hconcat(x::OutputForm, y::OutputForm)
-
-SimplicialComplexTests() : with
-  testOrientedFacet : () -> Boolean
-    ++ test OrientedFacet, these tests depend on random values so it
-    ++ makes sense to repeat test multiple times.
-    ++ Tests are:
-    ++ 1) delta should be inverse of constuct from boundary.
-  testSimplicialComplex1 : () -> Boolean
-    ++ Test SimplicialComplex, these tests depend on random values so it
-    ++ makes sense to repeat test multiple times.
-    ++ Tests are:
-    ++ 1) coerce to Delta complex and back should give identical simplex
-    ++ 2) delta function composed with itself should give zero
-  testSimplicialComplex2 : () -> Boolean
-    ++ Test SimplicialComplex, these tests dont depend on random values
-    ++ so there is no point in repeating tests.
-    ++ Tests are:
-    ++ 1) fundamentalGroup of sphere is empty presentation
-  testHomology : () -> Boolean
-    ++ test homology for various simplectical and cubical complexes
-  testAll : (n : NNI) -> Boolean
-    ++ call all the other tests n times
-
- == add
-
-  -- Local function to provide random facet for various tests.
-  randomFacet(n : NNI) : OrientedFacet ==
-      verts := []$List(NNI)
-      for x in 1..n repeat
-          -- add 1 to avoid zero choose from 4 more values than
-          -- length so we can always avoid duplicates
-          i : NNI := random(n + 4) + 1
-          while member?(i, verts) repeat
-              i := random(n + 4) + 1
-          verts := concat(verts, i)
-      orientedFacet(1, sort(verts))
-
-  -- Local function to provide random FiniteSimplicialComplex.
-  randomSimplicialComplex(n : NNI) : FiniteSimplicialComplex(VertexSetAbstract) ==
-      i : NNI := random(12) + 1
-      if i=1 then return sphereSolid(2)$SimplicialComplexFactory
-      if i=2 then return sphereSurface(2)$SimplicialComplexFactory
-      if i=3 then return sphereSolid(3)$SimplicialComplexFactory
-      if i=4 then return sphereSurface(3)$SimplicialComplexFactory
-      if i=5 then return sphereSolid(4)$SimplicialComplexFactory
-      if i=6 then return sphereSurface(4)$SimplicialComplexFactory
-      if i=7 then return sphereSolid(5)$SimplicialComplexFactory
-      if i=8 then return sphereSurface(5)$SimplicialComplexFactory
-      if i=9 then return torusSurface()$SimplicialComplexFactory
-      if i=10 then return band()$SimplicialComplexFactory
-      if i=11 then return moebiusBand()$SimplicialComplexFactory
-      if i=12 then return projectivePlane()$SimplicialComplexFactory
-      kleinBottle()$SimplicialComplexFactory
-
-  --test OrientedFacet, these tests depend on random values so it
-  -- makes sense to repeat test multiple times.
-  -- Tests are:
-  -- 1) delta should be inverse of constuct from boundary.
-  testOrientedFacet() : Boolean ==
-      f := randomFacet(3)
-      d := delta(f)
-      f2 := orientedFacet(d)
-      if f ~= f2 then
-          print(message("testOrientedFacet error: random:") << f)
-          print(message("testOrientedFacet: delta=") << d)
-          print(message("testOrientedFacet: f2=") << f2)
-          error "test OrientedFacet failed : delta should be inverse "
-                "of construct from boundary"
-      true
-
-  -- Test SimplicialComplex, these tests depend on random values so it
-  -- makes sense to repeat test multiple times.
-  -- Tests are:
-  -- 1) coerce to Delta complex and back should give identical simplex
-  -- 2) delta function composed with itself should give zero
-  testSimplicialComplex1() : Boolean ==
-      sc := randomSimplicialComplex(3)
-      --print("testSimplicialComplex1 sc=" << sc)
-      d := sc::DeltaComplex(VertexSetAbstract)
-      sc2 := d::FiniteSimplicialComplex(VertexSetAbstract)
-      if sc ~= sc2 then
-          print(message("testSimplicialComplex1 error: random:") << sc)
-          print(message("testSimplicialComplex1 error: deltaComplex=") << d)
-          print(message("testSimplicialComplex1 error: f2=") << sc2)
-          error "test SimplicialComplex1 failed : coerce to delta should "
-                "be inverse of FiniteSimplicialComplex"
-      delta1 := delta(sc)
-      delta2 := delta(delta1)
-      ASIMP := FiniteSimplicialComplex(VertexSetAbstract)
-      v1 := []$List(List(NNI))
-      vs1 : VertexSetAbstract := vertexSeta(0::NNI)
-      zero := simplicialComplex(vs1, v1)$ASIMP
-      if delta2 ~= zero then
-          print(message("testSimplicialComplex2 error: random:") << sc)
-          print(message("testSimplicialComplex2 error: delta1=") << delta1)
-          print(message("testSimplicialComplex2 error: delta2=") << delta2)
-          error "test SimplicialComplex2 failed : delta function "
-                "composed with itself should give zero"
-      delta1 := delta(sc)
-      delta2 := delta(delta1)
-      true
-
-  -- Test SimplicialComplex, these tests dont depend on random values
-  -- so there is no point in repeating tests.
-  -- Tests are:
-  -- 1) fundamentalGroup of sphere is empty presentation
-  testSimplicialComplex2():Boolean ==
-      triv := groupPresentation()$GroupPresentation -- trivial group
-      free1 := groupPresentation([1])$GroupPresentation -- free in 1d
-      rule1 := groupPresentation([1], [[1]])$GroupPresentation
-      rule2 := groupPresentation([1], [[1, 1]])$GroupPresentation
-      g1 := fundamentalGroup(sphereSolid(2)$SimplicialComplexFactory)
-      if g1 ~= triv then
-          print(message("testSimplicialComplex2 fundamentalGroup:") << g1 << _
-                    message(" should be empty:") << triv)
-          error "fundamentalGroup of sphereSolid(2) should be empty"
-      g2 := fundamentalGroup(sphereSolid(3)$SimplicialComplexFactory)
-      if g2 ~= triv then
-          print(message("testSimplicialComplex2 fundamentalGroup:") << g2 << _
-                    message(" should be empty:") << triv)
-          error "fundamentalGroup of sphereSolid(3) should be empty"
-      g3 := fundamentalGroup(sphereSurface(2)$SimplicialComplexFactory)
-      if g3 ~= free1 then
-          print(message("testSimplicialComplex2 fundamentalGroup:") << g3 << _
-                    message(" should be free in 1 dim:") << free1)
-          error "fundamentalGroup of sphereSurface(2) should be free in 1 gen"
-      g4 := fundamentalGroup(sphereSurface(3)$SimplicialComplexFactory)
-      if g4 ~= triv then
-          print(message("testSimplicialComplex2 fundamentalGroup:") << g4 << _
-                    message(" should be empty:") << triv)
-          error "fundamentalGroup of sphereSurface(3) should be empty"
-      g5 := fundamentalGroup(band()$SimplicialComplexFactory)
-      if g5 ~= free1 then
-          print(message("testSimplicialComplex2 fundamentalGroup:") << g5 << _
-                    message(" should be free in 1 dim:") << free1)
-          error "fundamentalGroup of band() should be free in 1 gen"
-      g6 := fundamentalGroup(moebiusBand()$SimplicialComplexFactory)
-      if g6 ~= free1 then
-          print(message("testSimplicialComplex2 fundamentalGroup:") << g6 << _
-                    message(" should be free in 1 dim:") << free1)
-          error "fundamentalGroup of moebiusBand() should be free in 1 gen"
-      g7 := fundamentalGroup(projectivePlane()$SimplicialComplexFactory)
-      if g7 ~= rule2 then
-          print(message("testSimplicialComplex2 fundamentalGroup:") << g7 << _
-                    message(" should have 1 rule:") << rule2)
-          error "fundamentalGroup of projectivePlane() should have 1 rule"
-      true
-
-  -- test homology for various simplectical and cubical complexes
-  testHomology() : Boolean ==
-      b1 := sphereSolid(2)$SimplicialComplexFactory
-      h1 := homology(b1)
-      if h1 ~= [homologyz(), homology0(), homology0()] then
-          print(message("testHomology sphereSolid 2D is:") << h1 << _
-            message(" should be:") << [homologyz(), homology0(), homology0()])
-          error "error in testHomology for sphereSolid 2D"
-      b2 := sphereSolid(3)$SimplicialComplexFactory
-      h2 := homology(b2)
-      if h2 ~= [homologyz(), homology0(), homology0(), homology0()] then
-          print(message("testHomology sphereSolid 3D is:") << h2 << _
-            message(" should be:") << [homologyz(), homology0(), homology0()])
-          error "error in testHomology for sphereSolid 3D"
-      b3 := sphereSurface(2)$SimplicialComplexFactory
-      h3 := homology(b3)
-      if h3 ~= [homologyz(), homologyz()] then
-          print(message("testHomology sphereSurface 2D is:") << h3 << _
-                message(" should be:") << [homologyz(), homologyz()])
-          error "error in testHomology for sphereSurface 2D"
-      b4 := sphereSurface(3)$SimplicialComplexFactory
-      h4 := homology(b4)
-      if h4 ~= [homologyz(), homology0(), homologyz()] then
-          print(message("testHomology sphereSurface 3D is:") << h4 << _
-            message(" should be:") << [homologyz(), homology0(), homologyz()])
-          error "error in testHomology for sphereSurface 3D"
-      b5 := torusSurface()$SimplicialComplexFactory
-      h5 := homology(b5)
-      if h5 ~= [homologyz(), homologyzz(), homologyz()] then
-          print(message("testHomology torusSurface is:") << h5 << _
-            message(" should be:") << [homologyz(), homologyzz(), homologyz()])
-          error "error in testHomology for torusSurface"
-      b6 := projectivePlane()$SimplicialComplexFactory
-      h6 := homology(b6)
-      if h6 ~= [homologyz(), homologyc2(), homology0()] then
-          print(message("testHomology projectivePlane is:") << h6 << _
-            message(" should be:") << [homologyz(), homologyc2(), homology0()])
-          error "error in testHomology for projectivePlane"
-      b7 := kleinBottle()$SimplicialComplexFactory
-      h7 := homology(b7)
-      if h7 ~= [homologyz(), homologyzc2(), homology0()] then
-          print(message("testHomology kleinBottle is:") << h7 << _
-            message(" should be:") << [homologyz(), homologyzc2(), homology0()])
-          error "error in testHomology for kleinBottle"
-      -- now test cubical complexes
-      bc1 := sphereSolid(2)$CubicalComplexFactory
-      hc1 := homology(b1)
-      if hc1 ~= [homologyz(), homology0(), homology0()] then
-          print(message("testHomology sphereSolid 2D is:") << hc1 << _
-            message(" should be:") << [homologyz(), homology0(), homology0()])
-          error "error in testHomology for sphereSolid 2D"
-      bc2 := sphereSolid(3)$CubicalComplexFactory
-      hc2 := homology(bc2)
-      if hc2 ~= [homologyz(), homology0(), homology0(), homology0()] then
-          print(message("testHomology sphereSolid 3D is:") << hc2 << _
-            message(" should be:") << [homologyz(), homology0(), homology0()])
-          error "error in testHomology for sphereSolid 3D"
-      bc3 := sphereSurface(2)$CubicalComplexFactory
-      hc3 := homology(bc3)
-      if hc3 ~= [homologyz(), homologyz()] then
-          print(message("testHomology sphereSurface 2D is:") << hc3 << _
-                    message(" should be:") << [homologyz(), homologyz()])
-          error "error in testHomology for sphereSurface 2D"
-      bc4 := sphereSurface(3)$CubicalComplexFactory
-      hc4 := homology(bc4)
-      if hc4 ~= [homologyz(), homology0(), homologyz()] then
-          print(message("testHomology sphereSurface 3D is:") << hc4 << _
-            message(" should be:") << [homologyz(), homology0(), homologyz()])
-          error "error in testHomology for sphereSurface 3D"
-      bc5 := torusSurface()$CubicalComplexFactory
-      hc5 := homology(bc5)
-      if hc5 ~= [homologyz(), homologyzz(), homologyz()] then
-          print(message("testHomology torusSurface is:") << hc5 << _
-            message(" should be:") << [homologyz(), homologyzz(), homologyz()])
-          error "error in testHomology for torusSurface"
-      bc6 := projectivePlane()$CubicalComplexFactory
-      hc6 := homology(bc6)
-      if hc6 ~= [homologyz(), homologyc2(), homology0()] then
-          print(message("testHomology projectivePlane is:") << hc6 << _
-            message(" should be:") << [homologyz(), homologyc2(), homology0()])
-          error "error in testHomology for projectivePlane"
-      true
-
-  -- call all the other tests n times
-  testAll(n : NNI) : Boolean ==
-      for x in 1..n repeat
-          testOrientedFacet()
-          testSimplicialComplex1()
-      testSimplicialComplex2()
-      testHomology()
-      true
 
 --Copyright (c) 2016, Martin J Baker.
 --All rights reserved.
@@ -3528,7 +3246,7 @@ For more details see:
         Builds up to homology groups via graphs and simplicial complexes.
 
 [3] Wikipedia
-\url{http://https://en.wikipedia.org/wiki/Simplicial_complex/}
+\url{https://en.wikipedia.org/wiki/Simplicial_complex}
 
 [4] I have put a fuller explanation of this code here:
 \url{http://www.euclideanspace.com/prog/scratchpad/mycode/topology/}
