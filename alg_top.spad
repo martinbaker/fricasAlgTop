@@ -1396,7 +1396,7 @@ ChainComplex() : Exports == Impl where
 ++ Examples:
 ++ References:
 
-CoChainComplex() : Exports == Impl where
+CoChainComplex(VS : AbelianGroup) : Exports == Impl where
   NNI==> NonNegativeInteger
   x<<y ==> hconcat(x::OutputForm, y::OutputForm)
 
@@ -1407,6 +1407,8 @@ CoChainComplex() : Exports == Impl where
       ++ true if this is a valid chain complex, that is:
       ++ 1) maps compose
       ++ 2) product of adjacent coboundary maps is zero
+    coboundary : (a : %,n : NNI,inp : List(VS)) -> List(VS)
+      ++ calculate coboundary at dimention n for a given input
     homology : (a : %) -> List(Homology)
       ++ calculate homology using SmithNormalForm
 
@@ -1433,7 +1435,7 @@ CoChainComplex() : Exports == Impl where
                a(i, j) := AInt(i, j)::Fraction(Integer)
        a
 
-   -- true if this is a valid chain complex, that is:
+   -- true if this is a valid cochain complex, that is:
    -- 1) maps compose
    -- 2) product of adjacent maps is zero
    validate(a : %) : Boolean ==
@@ -1454,6 +1456,19 @@ CoChainComplex() : Exports == Impl where
                return false
            last := m
        true
+
+   -- calculate coboundary at dimention n for a given input
+   coboundary(a : %,n : NNI,inp : List(VS)) : List(VS) ==
+       p:NNI := 1
+       base : List(Integer) := [(if x=p then 1 else 0) for x in 1..(#inp)]
+       b : Vector(Integer) := vector(base)
+       m : Matrix(Integer) := a.n
+       vs : Vector(Integer) := b*m
+       print("coboundary(" << a << ", " << n << ", " << inp << ") b=" << b << " m=" << m << " vs=" << vs)
+       fst: Boolean := true
+       for v in entries(vs) repeat
+           v
+       inp
 
    -- calculate homology using SmithNormalForm
    homology(a : %) : List(Homology) ==
@@ -1598,7 +1613,7 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
     chain : (s : %) -> ChainComplex
       ++ returns a matrix sequence representing the face maps
       ++ in linear algebra form
-    coChain : (s : %) -> CoChainComplex
+    coChain : (s : %) -> CoChainComplex(VS)
       ++ returns a matrix sequence representing the face maps
       ++ in linear algebra form
     homology : (s : %) -> List(Homology)
@@ -1953,9 +1968,9 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
 
    -- returns a matrix sequence representing the face maps
    -- in linear algebra form
-   coChain(s : %) : CoChainComplex ==
+   coChain(s : %) : CoChainComplex(VS) ==
        dc : DeltaComplex(VS) := deltaComplex(s pretend FiniteSimplicialComplex(VS))
-       cc : CoChainComplex := coChain(dc)$DeltaComplex(VS)
+       cc : CoChainComplex(VS) := coChain(dc)$DeltaComplex(VS)
        cc
 
    -- calculate homology using SmithNormalForm
@@ -2487,7 +2502,7 @@ DeltaComplex(VS : AbelianGroup) : Exports == Impl where
     chain : (s : %) -> ChainComplex
       ++ returns a matrix sequence representing the face maps
       ++ in linear algebra form
-    coChain : (s : %) -> CoChainComplex
+    coChain : (s : %) -> CoChainComplex(VS)
       ++ returns a matrix sequence representing the face maps
       ++ in linear algebra form
     oneSkeleton : (s : %) -> UndirectedGraph(NNI)
@@ -2686,7 +2701,7 @@ DeltaComplex(VS : AbelianGroup) : Exports == Impl where
 
    -- returns a matrix sequence representing the face maps
    -- in linear algebra form
-   coChain(s : %) : CoChainComplex ==
+   coChain(s : %) : CoChainComplex(VS) ==
        res := []$List(Matrix(Integer))
        maps1 : List(List(List(Integer))) := s.MAPS
        n_rows : NNI := s.NUMPOINTS
