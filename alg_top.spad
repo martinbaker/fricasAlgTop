@@ -1459,16 +1459,29 @@ CoChainComplex(VS : AbelianGroup) : Exports == Impl where
 
    -- calculate coboundary at dimention n for a given input
    coboundary(a : %,n : NNI,inp : List(VS)) : List(VS) ==
-       p:NNI := 1
-       base : List(Integer) := [(if x=p then 1 else 0) for x in 1..(#inp)]
-       b : Vector(Integer) := vector(base)
-       m : Matrix(Integer) := a.n
-       vs : Vector(Integer) := b*m
-       print("coboundary(" << a << ", " << n << ", " << inp << ") b=" << b << " m=" << m << " vs=" << vs)
-       fst: Boolean := true
-       for v in entries(vs) repeat
-           v
-       inp
+       --print(message "coboundary(" << a << message ", " << n << message ", " << inp << message ")")
+       res : List(VS) := []
+       inpn : NNI := #inp
+       for p in 1..inpn repeat
+           base : List(Integer) := [(if x=p then 1 else 0) for x in 1..inpn]
+           b : Vector(Integer) := vector(base)
+           m : Matrix(Integer) := transpose(a.n)
+           vs : Vector(Integer) := b*m
+           --print(message "b=" << b << message " m=" << m << message " vs=" << vs)
+           fst: Boolean := true
+           res1 : List(VS) := []
+           for v in entries(vs) repeat
+               val : VS := inp.p
+               --if even?(p) then val := -val
+               if v=0 then res1 := concat(res1,0)
+               if v>0 then res1 := concat(res1,-val)
+               if v<0 then res1 := concat(res1,val)
+               --print(message "v=" << v << message " val=" << val << _
+               --      message " res1=" << res1 << message " res=" << res)
+           if empty?(res)
+               then res := res1
+               else res := [(res.i + res1.i) for i in 1..(#res1)]
+       res
 
    -- calculate homology using SmithNormalForm
    homology(a : %) : List(Homology) ==
