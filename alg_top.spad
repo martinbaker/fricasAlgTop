@@ -284,7 +284,7 @@ OrientedFacet() : Exports == Impl where
       ++ returns indexes in face with sign to give orientation
     setMult! : (orf : %, m : Integer) -> %
       ++ sets multiplier of face
-    delta : (orf : %) -> List(%)
+    boundary : (orf : %) -> List(%)
       ++ construct the boundary. This is like hollowing out
       ++ the facet.
     allSubsets : (orf : %, minDim : NNI) -> List(%)
@@ -382,7 +382,7 @@ OrientedFacet() : Exports == Impl where
 
    -- Constructor for oriented face from its boundary.
    -- This is like filling-in the boundary, in that sense it
-   -- is the inverse of 'delta'.
+   -- is the inverse of 'boundary'.
    orientedFacet(boundary : List(%)) : % ==
        -- print("orientedFacet:" << boundary)
        indexLst := []$List(List(NNI))
@@ -402,11 +402,11 @@ OrientedFacet() : Exports == Impl where
        indexes := removeDuplicates(indexes)
        indexes := sort(indexes)
        res := orientedFacet(1, indexes)
-       expected : List(%) := delta(res)
+       expected : List(%) := boundary(res)
        mm := position(first(boundary), expected)
        if mm < 0 then
            res := orientedFacet(-1, indexes)
-           expected := delta(res)
+           expected := boundary(res)
        -- the remainder of this is to validate that boundary supplied really
        -- is a boundary for the facet that has been generated
        for e in expected repeat
@@ -468,7 +468,7 @@ OrientedFacet() : Exports == Impl where
        orf
 
    -- construct the boundary. This is like hollowing out the facet.
-   delta(orf : %) : List(%) ==
+   boundary(orf : %) : List(%) ==
        facet : List(NNI) := orf.fac
        -- reverse outer list to get in numeric order
        revFacet : List(NNI) := reverse(facet)
@@ -933,7 +933,7 @@ CubicalFacet() : Exports == Impl where
     product : (a : %, b : %) -> %
       ++ This function returns the product of two cubicalfacets.
       ++ Unlike the simplex case, the product is a sinle facet
-    delta : (orf : %) -> List(%)
+    boundary : (orf : %) -> List(%)
       ++ construct the boundary. This is like hollowing out
       ++ the facet.
     sameFace? : (a : %, b : %) -> Boolean
@@ -1039,7 +1039,7 @@ CubicalFacet() : Exports == Impl where
        cubicalFacet(1, concat(aint, bint))
 
    -- local function used by boundary operator.
-   deltaOneDimension(orf : %, dim : NNI, invert : Boolean) : List(%) ==
+   boundaryOneDimension(orf : %, dim : NNI, invert : Boolean) : List(%) ==
        facet : List(Segment(Integer)) := orf.fac
        mult : Integer := orf.mul
        subFacet1 := []$List(Segment(Integer))
@@ -1062,7 +1062,7 @@ CubicalFacet() : Exports == Impl where
        res
 
    -- Boundary operator. This is like hollowing out the facet.
-   delta(orf : %) : List(%) ==
+   boundary(orf : %) : List(%) ==
        facet : List(Segment(Integer)) := orf.fac
        mult : Integer := orf.mul
        -- dims will hold array of indexes of non-degenerate intervals
@@ -1075,11 +1075,11 @@ CubicalFacet() : Exports == Impl where
        invert : Boolean := false
        -- for each non-degenerate interval add boundary
        for dim in dims repeat
-           -- print("delta(" << orf << ", " << dim <<
+           -- print("boundary(" << orf << ", " << dim <<
            --       ")")
-           res := concat(res, deltaOneDimension(orf, dim, invert))
+           res := concat(res, boundaryOneDimension(orf, dim, invert))
            invert := not invert
-       --print("delta res=" << res)
+       --print("boundary res=" << res)
        res
 
    -- local function to add if new
@@ -1574,7 +1574,7 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
       ++ by the simplecicalComplex conventions (if they don't already exist).
       ++ For example, if the input is a triangle ((1, 2, 3)) then we would add
       ++ its edges ((1, 2), (1, 3), and (2, 3)).
-    delta : (s : %) -> %
+    boundary : (s : %) -> %
       ++ Step down to the next lower dimension, this is like hollowing out the complex.
       ++ It takes the highest dimension entries and replaces them with their boundaries,
       ++ cancelling out where it can.
@@ -1849,12 +1849,12 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
    -- Step down to the next lower dimension, this is like hollowing out the complex.
    -- It takes the highest dimension entries and replaces them with their boundaries,
    -- cancelling out where it can.
-   delta(s : %) : % ==
+   boundary(s : %) : % ==
        res : % := simplicialComplex(s.VERTSET)
        --facets := []$List(OrientedFacet)
        for facet in s.SIMP repeat
-           x : List(OrientedFacet) := delta(facet)
-           --print("delta(" << s.SIMP << ") x=" << x)
+           x : List(OrientedFacet) := boundary(facet)
+           --print("boundary(" << s.SIMP << ") x=" << x)
            for y in x repeat
                --facets := concat(facets, y)$List(OrientedFacet)
                res := addSimplex(res, y)
@@ -1876,7 +1876,7 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
        for facet in s.SIMP repeat
            if isSubsetOf?(simplex, facet) then
                --x : OrientedFacet := subtract(simplex, facet)
-               x : List(OrientedFacet) := delta(facet)
+               x : List(OrientedFacet) := boundary(facet)
                res := concat(res, x)
        [s.VERTSET, res]
 
@@ -2182,7 +2182,7 @@ FiniteCubicalComplex(VS : AbelianGroup) : Exports == Impl where
       ++ trace - if true outputs trace of simplification rules used.
     homology : (a : %) -> List(Homology)
       ++ calculate homology using SmithNormalForm
-    delta : (s : %) -> %
+    boundary : (s : %) -> %
       ++ Boundary operator. Step down to the next lower dimension, this is
       ++ like hollowing out the complex.
       ++ It takes the highest dimension entries and replaces them with their boundaries,
@@ -2265,12 +2265,12 @@ FiniteCubicalComplex(VS : AbelianGroup) : Exports == Impl where
    -- like hollowing out the complex.
    -- It takes the highest dimension entries and replaces them with their boundaries,
    -- cancelling out where it can.
-   delta(s : %) : % ==
+   boundary(s : %) : % ==
        res : % := cubicalComplex(s.VERTSET)
        --facets := []$List(CubicalFacet)
        for facet in s.CUBE repeat
-           x : List(CubicalFacet) := delta(facet)
-           --print("delta(" << s.CUBE << ") x=" << x)
+           x : List(CubicalFacet) := boundary(facet)
+           --print("boundary(" << s.CUBE << ") x=" << x)
            for y in x repeat
                --facets := concat(facets, y)$List(CubicalFacet)
                res := addCube(res, y)
@@ -2577,7 +2577,7 @@ DeltaComplex(VS : AbelianGroup) : Exports == Impl where
                -- we need to build up a map from oldFaceHigh to oldFacesLow
                for oldFaceHigh in gradeList repeat
                    --print("  deltaComplex oldFaceHigh=" << oldFaceHigh )
-                   oldFacesLow : List(OrientedFacet) := delta(oldFaceHigh)
+                   oldFacesLow : List(OrientedFacet) := boundary(oldFaceHigh)
                    --print("  deltaComplex oldFacesLow=" << oldFacesLow )
                    newIndexes := []$List(Integer)
                    for oldFaceLow in oldFacesLow repeat
@@ -2630,7 +2630,7 @@ DeltaComplex(VS : AbelianGroup) : Exports == Impl where
            -- we need to build up a map from oldFaceHigh to oldFacesLow
            map1 := []$List(List(Integer))
            for oldFaceHigh in gradeList repeat
-               oldFacesLow : List(CubicalFacet) := delta(oldFaceHigh)
+               oldFacesLow : List(CubicalFacet) := boundary(oldFaceHigh)
                --print("  deltaComplex oldFaceHigh=" << oldFaceHigh << _
                --      " oldFacesLow=" << oldFacesLow )
                newIndexes := []$List(Integer)
@@ -2934,108 +2934,97 @@ PI ==> PositiveInteger
 NNI==> NonNegativeInteger
 x<<y ==> hconcat(x::OutputForm, y::OutputForm)
 
-SimplicialComplexFactory() : with
-  sphereSolid : (dim : NNI) -> FiniteSimplicialComplex(Integer)
+SimplicialComplexFactory(VS : AbelianGroup) : with
+  sphereSolid : (dim : NNI) -> FiniteSimplicialComplex(VS)
     ++ Generate a simplicial complex equivalent to a solid hyper-sphere. That
     ++ is, a solid volume with no holes in it, so we use a single n-dimensional
     ++ simplex.
-  sphereSurface : (dim : NNI) -> FiniteSimplicialComplex(Integer)
+  sphereSurface : (dim : NNI) -> FiniteSimplicialComplex(VS)
     ++ Generate a simplicial complex equivalent to the surface of a hyper-sphere.
     ++ That is, the surface of a volume with no holes in it, so we use a minimal
     ++ triangulation of the faces of a single simplex.
-  torusSurface : () -> FiniteSimplicialComplex(Integer)
+  torusSurface : () -> FiniteSimplicialComplex(VS)
     ++ generate a minimal triangulation of the surface of an 3-dimensional torus.
-  band : () -> FiniteSimplicialComplex(Integer)
+  band : () -> FiniteSimplicialComplex(VS)
     ++ Generate a minimal triangulation of the surface of a cylinder without ends
-  moebiusBand : () -> FiniteSimplicialComplex(Integer)
+  moebiusBand : () -> FiniteSimplicialComplex(VS)
     ++ Generate a minimal triangulation of the surface of a Moebius band.
     ++ A one sided surface with a single external boundary line.
-  projectivePlane : () -> FiniteSimplicialComplex(Integer)
+  projectivePlane : () -> FiniteSimplicialComplex(VS)
     ++ Generate a minimal triangulation of the surface of a projective plane.
     ++ A one sided surface which cannot be embedded in 3D space without
     ++ intersecting itself. There are no external boundaries, every edge
     ++ connects two faces.
     ++ (A punctured projective plane is equivalent to a Moebius band)
-  kleinBottle : () -> FiniteSimplicialComplex(Integer)
+  kleinBottle : () -> FiniteSimplicialComplex(VS)
     ++ generate a minimal triangulation of the surface of a Klein bottle.
-  dunceHat : () -> FiniteSimplicialComplex(Integer)
+  dunceHat : () -> FiniteSimplicialComplex(VS)
     ++ Generate a minimal triangulation of dunce hat.
 
  == add
 
-  ASIMP ==> FiniteSimplicialComplex(Integer)
+  ASIMP ==> FiniteSimplicialComplex(VS)
 
   -- generate a simplicial complex equivalent to a solid hyper-sphere. That
   -- is, a solid volume with no holes in it, so we use a single n-dimensional
   -- simplex.
-  sphereSolid(dim : NNI) : FiniteSimplicialComplex(Integer) ==
+  sphereSolid(dim : NNI) : ASIMP ==
       v1 : List(List(NNI)) := [[n for n in 1..(dim + 1)]]
-      vs1 : List(Integer) := [] -- dim + 1
-      r := simplicialComplex(vs1, v1)$ASIMP
-      --print("sphereSolid=" << r)
-      r
+      vs1 : List(VS) := []
+      simplicialComplex(vs1, v1)$ASIMP
 
   -- generate a simplicial complex equivalent to the surface of a hyper-sphere.
   -- That is, the surface of a volume with no holes in it, so we use a minimal
   -- triangulation of the faces of a single simplex.
-  sphereSurface(dim : NNI) : FiniteSimplicialComplex(Integer) ==
+  sphereSurface(dim : NNI) : ASIMP ==
       s := sphereSolid(dim)
-      r := delta(s)
-      --print("sphereSurface=" << r)
-      r
+      boundary(s)
 
   -- generate a minimal triangulation of the surface of an 3-dimensional torus.
-  torusSurface() : FiniteSimplicialComplex(Integer) ==
+  torusSurface() : ASIMP ==
       v1 : List(List(NNI)) := ([[1, 2, 3], [2, 3, 5], [2, 4, 5], [2, 4, 7],
          [1, 2, 6], [2, 6, 7], [3, 4, 6], [3, 5, 6], [3, 4, 7], [1, 3, 7],
          [1, 4, 5], [1, 4, 6], [5, 6, 7], [1, 5, 7]])
-      vs1 : List(Integer) := [] --  7
-      r := simplicialComplex(vs1, v1)$ASIMP
-      --print("torusSurface=" << r)
-      r
+      vs1 : List(VS) := [] --  7
+      simplicialComplex(vs1, v1)$ASIMP
 
   -- generate a minimal triangulation of the surface of a cylinder without ends
-  band() : FiniteSimplicialComplex(Integer) ==
+  band() : ASIMP ==
       v1 : List(List(NNI)) := ([[1, 2, 3], [1, 2, 6], [1, 5, 6],
                                [2, 3, 4], [3, 4, 5], [4, 5, 6]])
-      vs1 : List(Integer) := [] -- = 6
-      r := simplicialComplex(vs1, v1)$ASIMP
-      r
+      vs1 : List(VS) := [] -- = 6
+      simplicialComplex(vs1, v1)$ASIMP
 
   -- generate a minimal triangulation of the surface of a Moebius band.
-  moebiusBand() : FiniteSimplicialComplex(Integer) ==
+  moebiusBand() : ASIMP ==
       v1 : List(List(NNI)) := ([[1, 2, 3], [2, 3, 4], [3, 4, 5],
                                [1, 4, 5], [1, 2, 5]])
-      vs1 : List(Integer) := [] -- 5
-      r := simplicialComplex(vs1, v1)$ASIMP
-      r
+      vs1 : List(VS) := [] -- 5
+      simplicialComplex(vs1, v1)$ASIMP
 
   -- generate a minimal triangulation of the surface of a projective plane.
   -- (A punctured projective plane is equivalent to a Moebius band)
-  projectivePlane() : FiniteSimplicialComplex(Integer) ==
+  projectivePlane() : ASIMP ==
       v1 : List(List(NNI)) := ([[1, 2, 3], [1, 3, 4], [1, 2, 6], [1, 5, 6],
          [1, 4, 5], [2, 3, 5], [2, 4, 5], [2, 4, 6], [3, 4, 6], [3, 5, 6]])
-      vs1 : List(Integer) := [] -- 6
-      r := simplicialComplex(vs1, v1)$ASIMP
-      r
+      vs1 : List(VS) := [] -- 6
+      simplicialComplex(vs1, v1)$ASIMP
 
   -- generate a minimal triangulation of the surface of a Klein bottle.
-  kleinBottle() : FiniteSimplicialComplex(Integer) ==
+  kleinBottle() : ASIMP ==
       v1 : List(List(NNI)) := ([[3, 4, 8], [2, 3, 4], [2, 4, 6], [2, 6, 8],
          [2, 5, 8], [3, 5, 7], [2, 3, 7], [2, 7, 1], [2, 5, 1], [3, 5, 1],
          [4, 5, 8], [4, 5, 7], [4, 6, 7], [6, 7, 1], [3, 6, 1], [3, 6, 8]])
-      vs1 : List(Integer) := [] -- 8
-      r := simplicialComplex(vs1, v1)$ASIMP
-      r
+      vs1 : List(VS) := [] -- 8
+      simplicialComplex(vs1, v1)$ASIMP
 
-  dunceHat() : FiniteSimplicialComplex(Integer) ==
+  dunceHat() : ASIMP ==
       v1 : List(List(NNI)) := ([[1, 2, 8], [2, 3, 8], [3, 7, 8], [1 ,3, 7],
          [1, 2, 7], [1, 6, 8], [1, 2, 6], [6, 7, 8], [2, 4, 6], [5, 6, 7],
          [2, 5, 7], [4, 5, 6], [2, 3, 4], [2, 3, 5], [1, 3, 4], [1, 4, 5],
          [1, 3, 5]])
-      vs1 : List(Integer) := [] -- 8
-      r := simplicialComplex(vs1, v1)$ASIMP
-      r
+      vs1 : List(VS) := [] -- 8
+      simplicialComplex(vs1, v1)$ASIMP
 
 )if false
 \section{DeltaComplex Factory}
@@ -3055,47 +3044,47 @@ PI ==> PositiveInteger
 NNI==> NonNegativeInteger
 x<<y ==> hconcat(x::OutputForm, y::OutputForm)
 
-DeltaComplexFactory() : with
-  circle : () -> DeltaComplex(Integer)
+DeltaComplexFactory(VS : AbelianGroup) : with
+  circle : () -> DeltaComplex(VS)
     ++ Generate a minimal circle from an edge from vertex A to A.
-  dunceHat : () -> DeltaComplex(Integer)
+  dunceHat : () -> DeltaComplex(VS)
     ++ generate a minimal dunceHat from 3 edges.
-  torusSurface : () -> DeltaComplex(Integer)
+  torusSurface : () -> DeltaComplex(VS)
     ++ generate a minimal 3-dimensional torus surface.
-  projectiveSpace : Integer -> DeltaComplex(Integer)
+  projectiveSpace : Integer -> DeltaComplex(VS)
     ++ Generate a minimal projective space.
-  kleinBottle : () -> DeltaComplex(Integer)
+  kleinBottle : () -> DeltaComplex(VS)
     ++ generate a minimal Klein bottle.
 
  == add
 
-  DC ==> DeltaComplex(Integer)
+  DC ==> DeltaComplex(VS)
 
   -- Generate a minimal circle from an edge from vertex A to A.
-  circle() : DeltaComplex(Integer) ==
-      vs1 : List(Integer) := []
+  circle() : DC ==
+      vs1 : List(VS) := []
       deltaComplex(vs1,1, [[[1, -1]]])$DC
 
   -- generate a minimal dunceHat from 3 edges.
-  dunceHat() : DeltaComplex(Integer) ==
-      vs1 : List(Integer) := []
+  dunceHat() : DC ==
+      vs1 : List(VS) := []
       deltaComplex(vs1,1, [[[1, -1]], [[1, 1, -1]]])$DC
 
   -- generate a minimal torus.
-  torusSurface() : DeltaComplex(Integer) ==
-      vs1 : List(Integer) := []
+  torusSurface() : DC ==
+      vs1 : List(VS) := []
       deltaComplex(vs1,1, [[[1, -1], [1, -1]], [[1, 2, -1, -2]]])$DC
 
-  projectiveSpace(n : Integer) : DeltaComplex(Integer) ==
-      vs1 : List(Integer) := []
+  projectiveSpace(n : Integer) : DC ==
+      vs1 : List(VS) := []
       cl : List(List(List(Integer))) := []
       for i in 1..n repeat
           cl := cons([[1, (odd?(i) => -1; 1)]], cl)
       deltaComplex(vs1,1, reverse!(cl))$DC
 
   -- generate a minimal surface of a Klein bottle.
-  kleinBottle() : DeltaComplex(Integer) ==
-      vs1 : List(Integer) := []
+  kleinBottle() : DC ==
+      vs1 : List(VS) := []
       deltaComplex(vs1,1, [[[1, -1], [1, -1]], [[1, 2, 1, -2]]])$DC
 
 )if false
@@ -3184,7 +3173,7 @@ CubicalComplexFactory() : with
   -- faces of a single cube.
   sphereSurface(dim : NNI) : FiniteCubicalComplex(Integer) ==
       s := sphereSolid(dim)
-      r := delta(s)
+      r := boundary(s)
       r
 
   -- generate a cubical complex of the surface of an 3-dimensional torus.
