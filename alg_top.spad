@@ -1384,7 +1384,7 @@ ChainComplex() : Exports == Impl where
 ++   Delta Complexes are defined by a sequence of 'face maps', These can
 ++   be represented by a list of matrices.
 ++   for more documentation see:
-++   http://www.euclideanspace.com/prog/scratchpad/mycode/topology/
+++   http://www.euclideanspace.com/prog/scratchpad/mycode/topology/chain/cochain/index.htm
 ++ Date Created: Jan 2016
 ++ Basic Operations:
 ++ Related packages:
@@ -1549,6 +1549,8 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
   x<<y ==> hconcat(x::OutputForm, y::OutputForm)
 
   Exports ==> SetCategory() with
+    simplicialComplex : (v : List(VS), numPoints:NNI, fs : List(List(NNI))) -> %
+      ++ constructor where the simplices are supplied
     simplicialComplex : (v : List(VS), fs : List(List(NNI))) -> %
       ++ constructor where the simplices are supplied
     simplicialComplex : (v : List(VS)) -> %
@@ -1647,21 +1649,32 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
    --  NNI is an index.
    --  The inner list represents an individual simplex.
    --  The outer list holds a list of simplexes.
-   Rep := Record(VERTSET : List(VS), SIMP : List(OrientedFacet))
+   Rep := Record(VERTSET : List(VS),NUMPOINTS : NNI, SIMP : List(OrientedFacet))
 
    -- constructor where the vertex set and simplices are supplied
-   simplicialComplex(v : List(VS), fs : List(List(NNI))) : % ==
+   simplicialComplex(v : List(VS),numPoints:NNI, fs : List(List(NNI))) : % ==
        --print("simplicialComplex(" << fs << ")")
        res := []$List(OrientedFacet)
        for f in fs repeat
            res := concat(res, orientedFacet(1, f))
        --print("simplicialComplex f=" << f << " res=" << res)
-       [v, res]
+       [v, numPoints, res]
+
+   -- constructor where the vertex set and simplices are supplied
+   simplicialComplex(v : List(VS), fs : List(List(NNI))) : % ==
+       facs := []$List(OrientedFacet)
+       for f in fs repeat
+           facs := concat(facs, orientedFacet(1, f))
+       numPoints : NNI := 0
+       for fac in facs repeat
+           m := maxIndex(fac)
+           if m>numPoints then numPoints := m
+       [v,numPoints, facs]
 
    -- construct empty simplex
    simplicialComplex(v : List(VS)) : % ==
        res := []$List(OrientedFacet)
-       [v, res]
+       [v,0, res]
 
    -- construct FiniteSimplicialComplex from DeltaComplex.
    simplicialComplex(dc : DeltaComplex(VS)) : % ==
@@ -1703,7 +1716,7 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
        for r in deleteList repeat
            res := remove(r, res)
        --print("simplicialComplex construct res=" << res)
-       [vertset, res]
+       [vertset,dcrep.NUMPOINTS, res]
 
    -- Add a facet to this simplex
    -- If the facet is also in the list then, dont append, instead
@@ -1724,7 +1737,7 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
        for orf in res repeat
            if getMult(orf) ~= 0 then
                res2 := concat(res2, orf)
-       [a.VERTSET, res2]
+       [a.VERTSET, a.NUMPOINTS, res2]
 
    -- find the maximum index value.
    maxIndex(s : %) : NNI ==
@@ -1759,7 +1772,7 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
    sort(s : %) : % ==
        v : List(VS) := s.VERTSET
        fs : List(OrientedFacet) := s.SIMP -- list of faces
-       [v, sort(fs)]
+       [v, s.NUMPOINTS, sort(fs)]
 
    -- a local function to return a list where each entry:
    -- i) is a permutation of the input list
@@ -1867,7 +1880,7 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
        for simp in s.SIMP repeat
            if isSubsetOf?(simplex, simp) then
                res := concat(res, simp)
-       [s.VERTSET, res]
+       [s.VERTSET, s.NUMPOINTS, res]
 
    -- The 'link' of a simplicial complex and a simplex contains the boundary of the
    -- simplexes of s which include simplex.
@@ -1878,7 +1891,7 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
                --x : OrientedFacet := subtract(simplex, facet)
                x : List(OrientedFacet) := boundary(facet)
                res := concat(res, x)
-       [s.VERTSET, res]
+       [s.VERTSET, s.NUMPOINTS, res]
 
    -- The 'cone' of a simplicial complex is formed by adding the vertex to every
    -- facet.
@@ -1889,7 +1902,7 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
        for facet in s.SIMP repeat
            x : OrientedFacet := addVertex(facet, vertex)
            res := concat(res, x)
-       [s.VERTSET, res]
+       [s.VERTSET, s.NUMPOINTS, res]
 
    -- Forms disjoint union of two simplicial complexes.
    simplicialJoin(a : %, b : %) : % ==
@@ -2002,9 +2015,16 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
    product(a : %, b : %) : % ==
        simpsa : List(OrientedFacet) := a.SIMP
        simpsb : List(OrientedFacet) := b.SIMP
---       vs : VS := prod(a.VERTSET, b.VERTSET)
--- temp fix *************************************************
-       vs : List(VS) := a.VERTSET
+       -- How do we represent the points? This should be the Cartesian
+       -- product of the points in 'a' and the points in 'b', so this
+       -- would increase the dimension of the points. But here
+       -- we do not know how these points are represented, we can only
+       -- do Abelian group operations (+, - or set to 0).
+       vs : List(VS) := []
+       for pa in a.VERTSET repeat
+           for pb in b.VERTSET repeat
+               pp:VS := pa+pb
+               vs := concat(vs,pp)
        res := []$List(ProductFacet)
        for simpa in simpsa repeat
            for simpb in simpsb repeat
@@ -2037,7 +2057,8 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
                --print("product indexes l=" << l << " r=" << r << " dima="
                --    << dima << " dimb=" << dimb << " newIndex=" << newIndex)
            res3 := concat(res3, orientedFacet(mul, inds2))
-       [vs, res3]
+       numPoints : NNI := a.NUMPOINTS * b.NUMPOINTS
+       [vs, numPoints, res3]
 
    -- Local function used by '=' to check if two simplexes are equal.
    -- To be equal they must contain the same indexes, wound in the same
@@ -2596,10 +2617,12 @@ DeltaComplex(VS : AbelianGroup) : Exports == Impl where
                    map1 := cons(reverse!(newIndexes), map1)
            faceMaps := cons(reverse!(map1), faceMaps)
            previousFaceList := gradeList
-       vs : List(VS) := (fsc pretend Record(VERTSET : List(VS),
-                                      SIMP : List(List(NNI)))).VERTSET
+       fscRep := fsc pretend  Record(VERTSET : List(VS),
+                         NUMPOINTS : NNI,
+                         SIMP : List(OrientedFacet))
+       vs : List(VS) := fscRep.VERTSET
        --print("deltaComplex faceMaps=" << faceMaps )
-       m := maxIndex(fsc)
+       m := fscRep.NUMPOINTS
        [vs,m, reverse!(faceMaps)]
 
    -- construct from FiniteCubicalComplex. This builds indexes of
@@ -2899,10 +2922,13 @@ DeltaComplex(VS : AbelianGroup) : Exports == Impl where
    coerce(s : %) : OutputForm ==
        res := empty()$OutputForm -- holds result
        if empty?(s.MAPS) then return res
-       tabNum : NNI := 1::NNI
+       row : OutputForm := hconcat([message("1D: points 1.."),
+                                   (s.NUMPOINTS)::OutputForm])
+       res := vconcat(res, row)
+       tabNum : NNI := 2::NNI
        for a in s.MAPS repeat
-           row : OutputForm := hconcat([message(" "), tabNum::OutputForm,
-                                        message("D:"), a::OutputForm])
+           row := hconcat([message(" "), tabNum::OutputForm,
+                           message("D:"), a::OutputForm])
            res := vconcat(res, row)
            tabNum := tabNum + 1
        res
