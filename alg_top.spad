@@ -177,6 +177,8 @@ corresponding facets can be matched up and sorted.
 So the representation is:
 Rep := Record(mul : Integer, ind : List(Record(left : NNI, right : NNI)))
 
+OrderedSet category is implemented so we can sort lists of facets. This
+requires that implentations support 'less than' and 'equal' (<,<= and =) functions.
 )endif
 
 )abbrev category FACTCAT FacetCategory
@@ -722,9 +724,9 @@ OrientedFacet() : Exports == Impl where
        ltLocal(a.rest, b.rest)
 
    -- less than
-   -- define an order so we can sort lists
+   -- define an order (OrderedSet category) so we can sort lists.
    ((ain : %) < (bin : %)) : Boolean ==
-       -- print("<(" << ain << ", " << bin << ")")
+       --print("<(" << ain << ", " << bin << ")")
        a : List(NNI) := ain.fac
        b : List(NNI) := bin.fac
        ltLocal(a, b)
@@ -732,7 +734,7 @@ OrientedFacet() : Exports == Impl where
    -- less than or equal
    -- define an order so we can sort lists
    ((ain : %) <= (bin : %)) : Boolean ==
-       -- print("<=(" << ain << ", " << bin << ")")
+       --print("<=(" << ain << ", " << bin << ")")
        a : List(NNI) := ain.fac
        b : List(NNI) := bin.fac
        if a = b then return true
@@ -1817,11 +1819,11 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
        for face in simp repeat
            if order(face) > maxGrade then maxGrade := order(face)
        res := []$List(List(OrientedFacet))
-       if maxGrade < 2 then return res
-       for a in 2..maxGrade repeat
+       if maxGrade < 1 then return res
+       for a in 1..maxGrade repeat
            res := concat(res, []$List(OrientedFacet))
        for face in simp repeat
-           gr : Integer := order(face) - 1
+           gr : Integer := order(face)
            if gr > 0 then
                res.gr := concat(res.gr, face)
        res
@@ -1885,24 +1887,24 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
    -- For example, if the input is a triangle ((1, 2, 3)) then we would add
    -- its edges ((1, 2), (1, 3), and (2, 3)).
    addImpliedFaces(s : %) : List(List(OrientedFacet)) ==
-       --print("addImpliedFaces s=" << s)
        inputList : List(List(OrientedFacet)) := reverse(grade(s))
+       --print(message "addImpliedFaces s=" << s << _
+       --      message " reverse=" << inputList)
        res := []$List(List(OrientedFacet))
        maxGrade : NNI := #inputList
        if (maxGrade) < 1 then
-           --print("addImpliedFaces return because maxGrade=" << maxGrade)
+           print(message "addImpliedFaces return because empty" << maxGrade)
            return res
        -- create an empty list for each grade
        res := []$List(List(OrientedFacet))
        newFaces := []$List(OrientedFacet)
        for gr in inputList repeat
-           --print("addImpliedFaces grade number grn=" << grn)
+           --print("addImpliedFaces grade=" << gr)
            -- add old faces
            all_faces := unorientedUnion(newFaces, gr)
-           -- print(message("all_faces = "))
-           -- print(all_faces::OutputForm)
+           --print(message"all_faces = " << all_faces::OutputForm)
            res := cons(all_faces, res)
-           --print("addImpliedFaces empty newFaces. res.grn=" << res.grn)
+           --print("addImpliedFaces res=" << res)
            newFaces := []
            --print("addImpliedFaces res.grn=" << res.grn)
            for face in all_faces repeat
@@ -2634,8 +2636,10 @@ DeltaComplex(VS : AbelianGroup) : Exports == Impl where
                     f : List(List(List(Integer)))) -> %
       ++ constructor where the simplices are supplied
     deltaComplex : (fsc : FiniteSimplicialComplex(VS)) -> %
-      ++ construct from FiniteSimplicialComplex. This builds indexes of
-      ++ edges, triangles and so on.
+      ++ construct from FiniteSimplicialComplex. This builds indexes
+      ++ of edges, triangles and so on.
+    deltaComplex : (fsc : FiniteSimplicialComplex(VS),_
+                trace : Boolean) -> %
     deltaComplex : (fsc : FiniteCubicalComplex(VS)) -> %
       ++ construct from FiniteCubicalComplex. This builds indexes of
       ++ edges, squares and so on.
@@ -2648,6 +2652,7 @@ DeltaComplex(VS : AbelianGroup) : Exports == Impl where
       ++ Where 'n' is the dimension required, so n=1 returns
       ++ one dimentional faces (edges), n=2 returns
       ++ two dimentional faces (triamgles), and so on.
+      ++ used by fundamentalGroup.
     chain : (s : %) -> ChainComplex
       ++ returns a matrix sequence representing the face maps
       ++ in linear algebra form
@@ -2678,38 +2683,104 @@ DeltaComplex(VS : AbelianGroup) : Exports == Impl where
    -- the next lower map.
    -- Since edges, triangles, tetrahedrons, etc. are oriented we use
    -- a positive or negative index to indicate winding direction.
-   Rep := Record(VERTSET : List(VS),NUMPOINTS : NNI, MAPS : List(List(List(Integer))))
+   Rep := Record(VERTSET : List(VS),_
+                 MAPS : List(List(List(Integer))))
+
+   -- local function to calculate 0 dimensional simplexes (points)
+   -- from the indexes of 1 dimensional simplexes (lines)
+   -- where:
+   -- dim1 is one dimensional entries (lines).
+   -- n is minimum number of points.
+   dim1todim0(dim1 : List(List(Integer)),_
+              n : NNI) : List(List(Integer)) ==
+       -- first determine number of points
+       m:NNI := n
+       for smp in dim1 repeat
+           for m2 in smp repeat
+               m3 : NNI := abs(m2) :: NNI
+               if m3>m then m := m3
+       -- now set 'pointsUsed' which holds list with
+       -- true for points which are used.
+       pointsUsed : List(Boolean) := new(m,false)
+       for smp in dim1 repeat
+           for m2 in smp repeat
+               m3 : NNI := abs(m2) :: NNI
+               pointsUsed.m3 := true
+       -- now generate array with entry for each point
+       res : List(List(Integer)) := _
+           [if x then [0] else [] for x in pointsUsed]
+       res
 
    -- constructor where the vertex set and simplices are supplied
-   deltaComplex(v : List(VS),numPoints:NNI, f : List(List(List(Integer)))) : % == [v, numPoints, f]
+   deltaComplex(v : List(VS),numPoints:NNI,_
+             f : List(List(List(Integer)))) : % ==
+       f0 := dim1todim0(f.last,numPoints)
+       fp := concat(f,f0)
+       [v, fp]
 
    -- construct from FiniteSimplicialComplex. This builds indexes of
    -- edges, triangles and so on.
    deltaComplex(fsc : FiniteSimplicialComplex(VS)) : % ==
+       deltaComplex(fsc,false)
+
+   -- construct from FiniteSimplicialComplex with trace. This builds
+   -- indexes of edges, triangles and so on.
+   deltaComplex(fsc : FiniteSimplicialComplex(VS),_
+                trace : Boolean) : % ==
+       fscRep := fsc pretend  Record(VERTSET : List(VS),
+                         NUMPOINTS : NNI,
+                         SIMP : List(OrientedFacet))
        -- first grade and add implied faces
        allFacets : List(List(OrientedFacet)) := addImpliedFaces(fsc)
-       --print("deltaComplex(" << fsc << ") allFacets=" << allFacets)
+       if trace then
+           print("deltaComplex(" << fsc << ") allFacets=" << allFacets)
        -- sort each grade
        allFacetsGraded := [sort(l) for l in allFacets
                           ]$List(List(OrientedFacet))
-       --print("deltaComplex allFacetsGraded=" << allFacetsGraded )
+       if trace then
+           print("deltaComplex allFacetsGraded=" << allFacetsGraded )
        -- now change base indexed to heirarcical indexed
        faceMaps := []$List(List(List(Integer)))
        previousFaceList := []$List(OrientedFacet)
        for gradeList in allFacetsGraded for grn in 1..(#allFacetsGraded) repeat
+           if trace then
+               print("deltaComplex grad num=" << grn << "=" << gradeList)
            -- start with a list of empty lists
            map1 := []$List(List(Integer))
            if grn = 1 then
-               -- edges
+               -- points
+               map2 := []$List(List(Integer))
                for x in gradeList repeat
                    -- x is an OrientedFacet
                    fm : List(Integer) := getIndexesSigned(x)
-                   -- print("  deltaComplex getIndexesSigned(" << x <<
-                   --       ")" << fm)
                    -- fm is signed list of verticies
-                   map1 := cons(fm, map1)
+                   map2 := cons(fm, map2)
+                   if trace then
+                       print("  deltaComplex getIndexesSigned(" << x <<
+                             ") fm=" << fm << " map2=" << map2)
+               -- first determine number of points
+               m:NNI := fscRep.NUMPOINTS
+               for smp in map2 repeat
+                   for m2 in smp repeat
+                       m3 : NNI := abs(m2) :: NNI
+                       if m3>m then m := m3
+               if trace then
+                   print("  deltaComplex m=" << m)
+               -- now set 'pointsUsed' which holds list with
+               -- true for points which are used.
+               pointsUsed : List(Boolean) := new(m,false)
+               for smp in map2 repeat
+                   for m2 in smp repeat
+                       m3 : NNI := abs(m2) :: NNI
+                       pointsUsed.m3 := true
+               -- now generate array with entry for each point
+               map1 := [if x then [0] else [] for x in pointsUsed]
+               if trace then
+                   print("  deltaComplex m=" << m << " map2=" << _
+                        map2 << " map1=" << map1)
+               map1 := reverse(map1)
            else
-               -- triangles and above
+               -- edges and above
                -- we need to build up a map from oldFaceHigh to oldFacesLow
                for oldFaceHigh in gradeList repeat
                    --print("  deltaComplex oldFaceHigh=" << oldFaceHigh )
@@ -2717,9 +2788,10 @@ DeltaComplex(VS : AbelianGroup) : Exports == Impl where
                    --print("  deltaComplex oldFacesLow=" << oldFacesLow )
                    newIndexes := []$List(Integer)
                    for oldFaceLow in oldFacesLow repeat
-                       --print("    deltaComplex oldFaceLow=" << oldFaceLow <<
-                       --      " previousFaceList=" << previousFaceList << _
-                       --      " allFacetsGraded.1=" << allFacetsGraded.1)
+                       if trace then
+                           print("    deltaComplex oldFaceLow=" << oldFaceLow <<
+                                 " previousFaceList=" << previousFaceList << _
+                                 " allFacetsGraded.1=" << allFacetsGraded.1)
                        i := position(oldFaceLow, previousFaceList
                                     )$OrientedFacet
                        if i = 0 then
@@ -2732,13 +2804,16 @@ DeltaComplex(VS : AbelianGroup) : Exports == Impl where
                    map1 := cons(reverse!(newIndexes), map1)
            faceMaps := cons(reverse!(map1), faceMaps)
            previousFaceList := gradeList
-       fscRep := fsc pretend  Record(VERTSET : List(VS),
-                         NUMPOINTS : NNI,
-                         SIMP : List(OrientedFacet))
        vs : List(VS) := fscRep.VERTSET
-       --print("deltaComplex faceMaps=" << faceMaps )
-       m := fscRep.NUMPOINTS
-       [vs,m, reverse!(faceMaps)]
+       if trace then
+           print("deltaComplex faceMaps=" << faceMaps )
+--       m := fscRep.NUMPOINTS
+--       f0 := dim1todim0(faceMaps.last,m)
+--       fp : List(List(List(Integer))) := concat(faceMaps,f0)
+--       if trace then
+--           print(message "deltaComplex faceMaps=" << faceMaps << _
+--                         " f0=" << f0 << " fp=" << fp)
+       [vs, faceMaps]
 
    -- construct from FiniteCubicalComplex. This builds indexes of
    -- edges, squares and so on.
@@ -2792,35 +2867,36 @@ DeltaComplex(VS : AbelianGroup) : Exports == Impl where
        vs : List(VS) := (fsc pretend Record(VERTSET : List(VS),
                                       SIMP : List(List(NNI)))).VERTSET
        m := maxIndex(fsc)
-       [vs,m, reverse!(faceMaps)]
+       f0 := dim1todim0(faceMaps.last,m)
+       fp : List(List(List(Integer))) := concat(faceMaps,f0)
+       [vs, fp]
 
    -- a simplical complex with one link
    link(a : NNI, b : NNI) : % ==
        vs : List(VS) := []
        simp : List(List(List(Integer))) := [[[a, b]]]
-       numPoints : NNI := 2
-       if a>numPoints then numPoints := a
-       if b>numPoints then numPoints := b
-       [vs,numPoints, simp]
+       points : List(List(Integer)) := dim1todim0(first(simp),2)
+       simp := concat (simp,points)
+       [vs, simp]
 
    -- a simplical complex with one triangle
    triangle(a : NNI, b : NNI, c : NNI):% ==
        vs : List(VS) := []
        edges : List(List(Integer)) := [[a, b], [a, c], [b, c]]
-       triangles : List(List(Integer)) := [[a, -b, c]]
-       simp : List(List(List(Integer))) := [edges, triangles]
-       numPoints : NNI := 3
-       if a>numPoints then numPoints := a
-       if b>numPoints then numPoints := b
-       if c>numPoints then numPoints := c
-       [vs,numPoints, simp]
+       triangles : List(List(Integer)) := [[1, -2, 3]]
+       points : List(List(Integer)) := dim1todim0(edges,3)
+       simp : List(List(List(Integer))) := [triangles, edges, points]
+       [vs, simp]
 
    -- returns an individual face map specified by n.
-   -- Where 'n' is the dimension required, so n=1 returns
-   -- one dimensional faces (edges), n=2 returns
-   -- two dimensional faces (triangles), and so on.
+   -- Where 'n' is the dimension required + 1, so
+   -- n=1 returns zero dimensional faces (points),
+   -- n=2 returns one dimensional faces (edges),
+   -- n=3 returns two dimensional faces (triangles),
+   -- and so on. Used by fundamentalGroup.
    faceMap(s : %, n : NNI) : List(List(Integer)) ==
-       maps1 : List(List(List(Integer))) := s.MAPS
+       maps1 : List(List(List(Integer))) := reverse(s.MAPS)
+       --print(message "faceMap maps1=" << maps1 << " n=" << n)
        if n > #maps1 then return []$List(List(Integer))
        maps1.n
 
@@ -2828,27 +2904,34 @@ DeltaComplex(VS : AbelianGroup) : Exports == Impl where
    -- in linear algebra form
    chain(s : %) : ChainComplex ==
        res := []$List(Matrix(Integer))
-       maps1 : List(List(List(Integer))) := s.MAPS
-       n_rows : NNI := s.NUMPOINTS
+       maps1 : List(List(List(Integer))) := reverse(s.MAPS)
+       n_rows : NNI := 1 --#first(maps1)
+       --print(message "chain maps1=" << maps1 << " n_rows=" << n_rows)
        res := cons(zero(1, n_rows), res)
        for faces in maps1 repeat
-           -- print("chain faces=" << faces << " res=" << res)
+           --print(message "chain faces=" << faces << " res=" << res)
            n_cols := #(faces)
-           -- print("chain n_rows=" << n_rows << " n_cols=" << n_cols)
+           -- zero constructs a Matrix containing '0's.
            m : Matrix(Integer) := zero(n_rows, n_cols)
-           --print("chain 2 nrows=" << nrows(m) << " ncols=" << ncols(m))
+           --print(message "chain zero matrix=" << m << _
+           --      message " nrows=" << n_rows << _
+           --      message " ncols=" << n_cols)
            for u in faces for nu in 1..(#faces) repeat
                for v in u repeat
                    v2 : Integer := abs(v)
-                   --print("chain(" << maps1 << ") row=" << nu << " col="
-                   --      << v2 << " nRows=" << nRows << " nCols=" << nCols)
-                   ele : Integer := (v > 0 => 1; -1)
-                   -- if even?(nv) then ele := -1
-                   setelt!(m, v2, nu, qelt(m, v2, nu) + ele)
+                   if v2 > 0 then
+                       ele : Integer := (v > 0 => 1; -1)
+                       --print(message " col=" << v2 << _
+                       --  message " row=" << nu << _
+                       --  message " n_cols=" << n_cols << " ele=" << ele)
+                       setelt!(m, v2, nu, qelt(m, v2, nu) + ele)
            res := cons(m, res)
+           -- adjacent matrices can be multiplied together so the
+           -- number of rows in the next matrix is equal to the
+           -- number of columns in this matrix.
            n_rows := n_cols
        -- add matrix with zero cols
-       --print("chain nRows=" << nCols << " nCols=" << 0)
+       --print(message "chain n_rows=" << n_rows)
        m : Matrix(Integer) := new(n_rows, 0, 0)
        res := cons(m, res)
        chainComplex(reverse!(res))
@@ -2857,8 +2940,8 @@ DeltaComplex(VS : AbelianGroup) : Exports == Impl where
    -- in linear algebra form
    coChain(s : %) : CoChainComplex(VS) ==
        res := []$List(Matrix(Integer))
-       maps1 : List(List(List(Integer))) := s.MAPS
-       n_rows : NNI := s.NUMPOINTS
+       maps1 : List(List(List(Integer))) := reverse(s.MAPS)
+       n_rows : NNI := #first(maps1)
        res := cons(zero(n_rows, 1), res)
        for faces in maps1 repeat
            -- print("cochain faces=" << faces << " res=" << res)
@@ -2898,8 +2981,11 @@ DeltaComplex(VS : AbelianGroup) : Exports == Impl where
        GS := UndirectedGraph(NNI)
        nodes := []$List(OBJT)
        edges := []$List(ARROW)
-       m : NNI := s.NUMPOINTS
-       edgeIndexes : List(List(Integer)) := first(s.MAPS)
+       if #(s.MAPS) < 2 then
+           return initial()$GS
+       m : NNI := #second(reverse(s.MAPS))
+       edgeIndexes : List(List(Integer)) := second(reverse(s.MAPS))
+       --print("oneSkeleton edgeIndexes=" << edgeIndexes << " m=" << m)
        for x in edgeIndexes repeat
            --print("oneSkeleton x=" << x)
            from1 : NNI := abs(x.1) pretend NNI
@@ -2909,7 +2995,7 @@ DeltaComplex(VS : AbelianGroup) : Exports == Impl where
            y : ARROW := ["x", 0::NNI, from1, to1, 0::Integer, 0::Integer, []]
            edges := concat(edges, y)$List(ARROW)
        --print("oneSkeleton nodes=" << nodes << " edges=" << edges  << _
-       --     " maxVerts=" << m  << " maxVerts=" << s.NUMPOINTS)
+       --     " maxVerts=" << m)
        for m1 in 1..m repeat
            nodes := concat(nodes, [m1, 0::NNI, 0::NNI])$List(OBJT)
        undirectedGraph(nodes, edges)$GS
@@ -2957,25 +3043,25 @@ DeltaComplex(VS : AbelianGroup) : Exports == Impl where
        -- complex) so get face map for triangles (2 dimensional)
        -- compute edge-path group
        graph : UndirectedGraph(NNI) := oneSkeleton(s)
-       --print("fundamentalGroup graph=" << graph )
+       if trace then print("fundamentalGroup graph=" << graph )
        -- choose a spanning tree for the 1-skeleton
        span : Tree(Integer) := spanningTreeNode(graph, 1::NNI
                                                )$UndirectedGraph(NNI)
        if trace then print(message("fundamentalGroup span=") << span)
-       edges : List(List(Integer)) := faceMap(s, 1::NNI)
-       res := []$List(List(Integer))
-       res := linksInTree(res, span)
-       edgesInTree : List(Boolean) := [false for y in edges]
+       edges : List(List(Integer)) := faceMap(s, 2::NNI)
+       --res := []$List(List(Integer))
+       res : List(List(Integer)) := linksInTree(res, span)
        if trace then
-           print(message("fundamentalGroup edges=") << edges <<
-                 message(" res=") << res)
+           print(message "fundamentalGroup edges=" << edges << _
+                 message " res=" << res)
+       edgesInTree : List(Boolean) := [false for y in edges]
        for edge in edges for edgen in 1..(#edges) repeat
            --if member?(unsignedEdge(edge), res) then edgesInTree.edgen := true
            if containsEdge?(edge, res) then edgesInTree.edgen := true
        if trace then
            print(message("fundamentalGroup linksInTree=") << res <<
                  message(" edgesInTree=") << edgesInTree)
-       polygons : List(List(Integer)) := faceMap(s, 2::NNI)
+       polygons : List(List(Integer)) := faceMap(s, 3::NNI)
        -- generate rules, these come from 2 dimensional triangles in the
        -- case of simplectical or squares in the case of cubical
        rules := []$List(List(Integer))
@@ -3034,19 +3120,20 @@ DeltaComplex(VS : AbelianGroup) : Exports == Impl where
        if len ~= #bs then return false
        true
 
-   -- output
+   -- Output. Highest dimension first.
    coerce(s : %) : OutputForm ==
        res := empty()$OutputForm -- holds result
-       if empty?(s.MAPS) then return res
-       row : OutputForm := hconcat([message("1D: points 1.."),
-                                   (s.NUMPOINTS)::OutputForm])
-       res := vconcat(res, row)
-       tabNum : NNI := 2::NNI
+       if empty?(s.MAPS) then
+           return hconcat([message "1D: points 1.."])
+       tabNum : Integer := #(s.MAPS) - 1
        for a in s.MAPS repeat
            row := hconcat([message(" "), tabNum::OutputForm,
                            message("D:"), a::OutputForm])
            res := vconcat(res, row)
-           tabNum := tabNum + 1
+           tabNum := tabNum - 1
+       --row : OutputForm := hconcat([message("1D: points 1.."),
+       --                            (s.NUMPOINTS)::OutputForm])
+       --res := vconcat(res, row)
        res
 
    -- coerce DeltaComplex to FiniteSimplicialComplex
@@ -3218,24 +3305,24 @@ DeltaComplexFactory(VS : AbelianGroup) : with
   -- generate a minimal dunceHat from 3 edges.
   dunceHat() : DC ==
       vs1 : List(VS) := []
-      deltaComplex(vs1,1, [[[1, -1]], [[1, 1, -1]]])$DC
+      deltaComplex(vs1,1, [[[1, 1, -1]],[[1, -1]]])$DC
 
   -- generate a minimal torus.
   torusSurface() : DC ==
       vs1 : List(VS) := []
-      deltaComplex(vs1,1, [[[1, -1], [1, -1]], [[1, 2, -1, -2]]])$DC
+      deltaComplex(vs1,1, [[[1, 2, -1, -2]],[[1, -1], [1, -1]]])$DC
 
   projectiveSpace(n : Integer) : DC ==
       vs1 : List(VS) := []
       cl : List(List(List(Integer))) := []
       for i in 1..n repeat
           cl := cons([[1, (odd?(i) => -1; 1)]], cl)
-      deltaComplex(vs1,1, reverse!(cl))$DC
+      deltaComplex(vs1,1,cl)$DC
 
   -- generate a minimal surface of a Klein bottle.
   kleinBottle() : DC ==
       vs1 : List(VS) := []
-      deltaComplex(vs1,1, [[[1, -1], [1, -1]], [[1, 2, 1, -2]]])$DC
+      deltaComplex(vs1,1, [[[1, 2, 1, -2]],[[1, -1], [1, -1]]])$DC
 
 )if false
 \section{Cubical Complex Factory}
