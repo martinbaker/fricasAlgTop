@@ -272,10 +272,10 @@ OrientedFacet() : Exports == Impl where
       ++ be: + - + - ...
     orientedFacet : (mul : Integer, fac : OrientedFacet) -> %
       ++ Copy constructor which can change mul
-    orientedFacet : (boundary : List(%)) -> %
+    orientedFacet : (boundary : List(%)) -> Union(%, "failed")
       ++ Constructor for oriented face from its boundary.
       ++ This is like filling-in the boundary, in that sense it
-      ++ is the inverse of 'delta'.
+      ++ is the inverse of 'boundary'.
     getIndexes : (orf : %) -> List(NNI)
       ++ returns indexes in face
     minIndex : (orf : %) -> NNI
@@ -391,7 +391,7 @@ OrientedFacet() : Exports == Impl where
    -- Constructor for oriented face from its boundary.
    -- This is like filling-in the boundary, in that sense it
    -- is the inverse of 'boundary'.
-   orientedFacet(boundary : List(%)) : % ==
+   orientedFacet(boundary : List(%)) : Union(%, "failed") ==
        -- print("orientedFacet:" << boundary)
        indexLst := []$List(List(NNI))
        multLst := []$List(Integer)
@@ -419,16 +419,16 @@ OrientedFacet() : Exports == Impl where
        -- is a boundary for the facet that has been generated
        for e in expected repeat
            if (mm := position(e, boundary)) <= 0 then
-               print(message("orientedFacet:") << e <<
-                     message(mm = 0 => "not in provided boundary";
-                      "has opposite orientation"))
-               error "Not a boundary of a cell"
+               --print(message("orientedFacet:") << e <<
+               --      message(mm = 0 => "not in provided boundary";
+               --       "has opposite orientation"))
+               return "failed"
        for e in boundary repeat
            if (mm := position(e, expected)) <= 0 then
-               print(message("orientedFacet:") << e <<
-                     message(mm = 0 => "not in constructed boundary";
-                      "has opposite orientation"))
-               error "Not a boundary of a cell"
+               --print(message("orientedFacet:") << e <<
+               --      message(mm = 0 => "not in constructed boundary";
+               --       "has opposite orientation"))
+               return "failed"
        res
 
    -- number of vertices
@@ -1580,6 +1580,8 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
       ++ constructor where the simplices are supplied
     simplicialComplex : (v : List(VS)) -> %
       ++ construct empty simplex
+    simplicialComplex : (dc : DeltaComplex(VS),trace : Boolean) -> %
+      ++ construct FiniteSimplicialComplex from DeltaComplex with trace.
     simplicialComplex : (dc : DeltaComplex(VS)) -> %
       ++ construct FiniteSimplicialComplex from DeltaComplex.
     addSimplex : (a : %, f : OrientedFacet) -> %
@@ -1720,11 +1722,16 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
 
    -- construct FiniteSimplicialComplex from DeltaComplex.
    simplicialComplex(dc : DeltaComplex(VS)) : % ==
-       --print("simplicialComplex(" << dc << ")")
-       dcrep := dc pretend Record(VERTSET : List(VS),NUMPOINTS : NNI, _
+       simplicialComplex(dc,false)
+
+   -- construct FiniteSimplicialComplex from DeltaComplex with trace.
+   simplicialComplex(dc : DeltaComplex(VS),trace : Boolean) : % ==
+       if trace then print("simplicialComplex(" << dc << ")")
+       dcrep := dc pretend Record(VERTSET : List(VS), _
                                   MAPS : List(List(List(Integer))))
+       NumPoints : NNI := 0
        vertset : List(VS) := dcrep.VERTSET
-       maps : List(List(List(Integer))) := dcrep.MAPS
+       maps : List(List(List(Integer))) := reverse(dcrep.MAPS)
        -- res list contains list which will become the result
        res := []$List(OrientedFacet)
        -- deleteList contains list for removal at the end
@@ -1732,17 +1739,28 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
        lastMap := []$List(List(OrientedFacet))
        for map in maps for grade in 1..(#maps) repeat
            lastMap := concat(lastMap, []$List(OrientedFacet))
+           if trace then
+              print("simplicialComplex map=" << map << _
+                             " grade=" << grade << _
+                             " lastMap=" << lastMap)
            if grade = 1 then
-               -- edges so facets are equal to map
+               -- points so facets are equal to map
+               NumPoints := #map
+               thisPoint : NNI := 0
                for facet in map repeat
-                   orf := orientedFacetSigned(facet)
-                   -- print("simplicialComplex add edge=" << orf <<
-                   --       " from face=" << facet)
-                   res := concat(res, orf)
-                   lastMap.grade :=concat(lastMap.grade, orf)
+                   thisPoint := thisPoint + 1
+                   if not empty?(facet) then
+                       orf := orientedFacetSigned([thisPoint])
+                       if trace then
+                         print(message "simplicialComplex add point=" << orf << _
+                            message " from face=" << facet)
+                       res := concat(res, orf)
+                       lastMap.grade :=concat(lastMap.grade, orf)
            if grade > 1 then
                -- for higher grades lookup index in next lower grade
                for facet in map repeat
+                   --print(message "simplicialComplex g=" << grade <<
+                   --      message" facet=" << facet)
                    subFacets := []$List(OrientedFacet)
                    for i in facet repeat
                        ind : NNI := abs(i)::NNI
@@ -1753,14 +1771,18 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
                        subFacet2 : OrientedFacet := orientedFacet(m, subFacet)
                        deleteList := concat(deleteList, subFacet)
                        subFacets := concat (subFacets, subFacet2)
-                   orf := orientedFacet(subFacets)
+                   orfx : Union(OrientedFacet, "failed") := _
+                          orientedFacet(subFacets)
+                   if orfx case "failed" then
+                       error "cannot construct SimplicialComplex from DeltaComplex"
+                   orf := orfx pretend OrientedFacet
                    res := concat(res, orf)
                    lastMap.grade := concat(lastMap.grade, orf)
        -- remove any facets that are contained in higher facets
        for r in deleteList repeat
            res := remove(r, res)
-       --print("simplicialComplex construct res=" << res)
-       [vertset,dcrep.NUMPOINTS, res]
+       if trace then print("simplicialComplex construct res=" << res)
+       [vertset,NumPoints, res]
 
    -- Add a facet to this simplex
    -- If the facet is also in the list then, dont append, instead
