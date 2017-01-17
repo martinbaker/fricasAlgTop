@@ -272,10 +272,13 @@ OrientedFacet() : Exports == Impl where
       ++ be: + - + - ...
     orientedFacet : (mul : Integer, fac : OrientedFacet) -> %
       ++ Copy constructor which can change mul
-    orientedFacet : (boundary : List(%)) -> Union(%, "failed")
+    orientedFacetIfCan : (boundary : List(%)) -> Union(%, "failed")
       ++ Constructor for oriented face from its boundary.
       ++ This is like filling-in the boundary, in that sense it
       ++ is the inverse of 'boundary'.
+      ++ May fail, for instance in 'implied' loops, where both ends
+      ++ of an edge are the same point. Also similar cases for higher
+      ++ order facets.
     getIndexes : (orf : %) -> List(NNI)
       ++ returns indexes in face
     minIndex : (orf : %) -> NNI
@@ -391,12 +394,11 @@ OrientedFacet() : Exports == Impl where
    -- Constructor for oriented face from its boundary.
    -- This is like filling-in the boundary, in that sense it
    -- is the inverse of 'boundary'.
-   orientedFacet(boundary : List(%)) : Union(%, "failed") ==
+   orientedFacetIfCan(boundary : List(%)) : Union(%, "failed") ==
        -- print("orientedFacet:" << boundary)
        indexLst := []$List(List(NNI))
        multLst := []$List(Integer)
-       if #boundary < 1 then
-           error "cannot construct orientedFacet from empty boundary"
+       if #boundary < 1 then return "failed"
        b : List(%) := sort(boundary)
        --print("orientedFacet b=" << b << " boundary="
        --       << boundary)
@@ -819,7 +821,7 @@ ProductFacet() : Exports == Impl where
    -- A facet is a list of indexes (ordered)
    -- 'mul' encodes the orientation. When we are interpreting this as
    -- a geometric object it is usually 1 or -1 (to reverse direction).
-   --  When we are interpreting this as a linear algebra object then we
+   -- When we are interpreting this as a linear algebra object then we
    -- treat it as an integer.
    Rep := Record(mul : Integer, ind : List(Record(left : NNI, right : NNI)))
 
@@ -1346,7 +1348,6 @@ ChainComplex() : Exports == Impl where
    chainComplex(v : List(Matrix(Integer))) : % ==
        v
 
-
    -- local function to convert from matrix over int to matrix over rational
    matrixOverRational(AInt : Matrix(Integer)) : Matrix(Fraction(Integer)) ==
        -- It is important that zero dimensions 0*0 and n*0 retain these
@@ -1484,7 +1485,8 @@ CoChainComplex(VS : AbelianGroup) : Exports == Impl where
 
    -- calculate coboundary at dimention n for a given input
    coboundary(a : %,n : NNI,inp : List(VS)) : List(VS) ==
-       --print(message "coboundary(" << a << message ", " << n << message ", " << inp << message ")")
+       --print(message "coboundary(" << a << message ", " << n << _
+       --message ", " << inp << message ")")
        res : List(VS) := []
        inpn : NNI := #inp
        for p in 1..inpn repeat
@@ -1492,7 +1494,8 @@ CoChainComplex(VS : AbelianGroup) : Exports == Impl where
            b : Vector(Integer) := vector(base)
            m : Matrix(Integer) := transpose(a.n)
            vs : Vector(Integer) := b*m
-           --print(message "b=" << b << message " m=" << m << message " vs=" << vs)
+           --print(message "b=" << b << message " m=" << m << _
+           --message " vs=" << vs)
            fst: Boolean := true
            res1 : List(VS) := []
            for v in entries(vs) repeat
@@ -1580,10 +1583,16 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
       ++ constructor where the simplices are supplied
     simplicialComplex : (v : List(VS)) -> %
       ++ construct empty simplex
-    simplicialComplex : (dc : DeltaComplex(VS),trace : Boolean) -> %
+    simplicialComplexIfCan : (dc : DeltaComplex(VS),trace : Boolean) -> _
+                         Union(%, "failed")
       ++ construct FiniteSimplicialComplex from DeltaComplex with trace.
-    simplicialComplex : (dc : DeltaComplex(VS)) -> %
+      ++ If there are 'implied' loops, such as facets with multiple
+      ++ entries with the same index, then this function may fail.
+    simplicialComplexIfCan : (dc : DeltaComplex(VS)) -> _
+                         Union(%, "failed")
       ++ construct FiniteSimplicialComplex from DeltaComplex.
+      ++ If there are 'implied' loops, such as facets with multiple
+      ++ entries with the same index, then this function may fail.
     addSimplex : (a : %, f : OrientedFacet) -> %
       ++ Add a facet to this simplex
       ++ If the facet is also in the list then, dont append, instead
@@ -1602,17 +1611,19 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
       ++ sort
     addImpliedFaces : (s : %) -> List(List(OrientedFacet))
       ++ a function to take a set of faces and add those that are implied
-      ++ by the simplecicalComplex conventions (if they don't already exist).
-      ++ For example, if the input is a triangle ((1, 2, 3)) then we would add
-      ++ its edges ((1, 2), (1, 3), and (2, 3)).
+      ++ by the simplecicalComplex conventions (if they don't already
+      ++ exist). For example, if the input is a triangle ((1, 2, 3))
+      ++ then we would add:
+      ++ its points ((1), (2), (3)).
+      ++ and its edges ((1, 2), (1, 3), (2, 3)).
     boundary : (s : %) -> %
       ++ Step down to the next lower dimension, this is like hollowing
       ++ out the complex.
       ++ It takes the highest dimension entries and replaces them with
       ++ their boundaries, cancelling out where it can.
     star : (s : %, simplex : OrientedFacet) -> %
-      ++ The 'star' of a simplicial complex and a facet contains only the faces
-      ++ of s which include simplex.
+      ++ The 'star' of a simplicial complex and a facet contains only
+      ++ the faces of s which include simplex.
     link : (s : %, simplex : OrientedFacet) -> %
       ++ The 'link' of a simplicial complex and a vertex contains the
       ++ boundary of the simplexes of s which include simplex.
@@ -1721,18 +1732,19 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
        [v,0, res]
 
    -- construct FiniteSimplicialComplex from DeltaComplex.
-   simplicialComplex(dc : DeltaComplex(VS)) : % ==
-       simplicialComplex(dc,false)
+   simplicialComplexIfCan(dc : DeltaComplex(VS)) : Union(%, "failed") ==
+       simplicialComplexIfCan(dc,false)
 
    -- construct FiniteSimplicialComplex from DeltaComplex with trace.
-   simplicialComplex(dc : DeltaComplex(VS),trace : Boolean) : % ==
+   simplicialComplexIfCan(dc : DeltaComplex(VS),trace : Boolean) : _
+            Union(%, "failed") ==
        if trace then print("simplicialComplex(" << dc << ")")
        dcrep := dc pretend Record(VERTSET : List(VS), _
                                   MAPS : List(List(List(Integer))))
        NumPoints : NNI := 0
        vertset : List(VS) := dcrep.VERTSET
        maps : List(List(List(Integer))) := reverse(dcrep.MAPS)
-       -- res list contains list which will become the result
+       -- res contains list which will become the result
        res := []$List(OrientedFacet)
        -- deleteList contains list for removal at the end
        deleteList := []$List(OrientedFacet)
@@ -1752,8 +1764,8 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
                    if not empty?(facet) then
                        orf := orientedFacetSigned([thisPoint])
                        if trace then
-                         print(message "simplicialComplex add point=" << orf << _
-                            message " from face=" << facet)
+                         print(message "simplicialComplex add point=" << _
+                            orf <<  message " from face=" << facet)
                        res := concat(res, orf)
                        lastMap.grade :=concat(lastMap.grade, orf)
            if grade > 1 then
@@ -1772,9 +1784,8 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
                        deleteList := concat(deleteList, subFacet)
                        subFacets := concat (subFacets, subFacet2)
                    orfx : Union(OrientedFacet, "failed") := _
-                          orientedFacet(subFacets)
-                   if orfx case "failed" then
-                       error "cannot construct SimplicialComplex from DeltaComplex"
+                          orientedFacetIfCan(subFacets)
+                   if orfx case "failed" then return "failed"
                    orf := orfx pretend OrientedFacet
                    res := concat(res, orf)
                    lastMap.grade := concat(lastMap.grade, orf)
@@ -1884,15 +1895,17 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
        reslt := concat(reslt, orderedPermutation(rst, len))
        reslt
 
-   -- local function used in unorientedUnion in addImpliedFaces
+   -- local function used in unorientedUnion in addImpliedFaces.
+   -- Returns true if 'b' is an element of 'lst'.
    isNewFace?(lst : List(OrientedFacet), b : OrientedFacet) : Boolean ==
        --print("isNewFace?(" << a << ", " << b << ")")
        for a in lst repeat
            if sameFace?(a, b) then return false
-           --if member?(b, a)$List(OrientedFacet) then return false
        true
 
-   -- local function used in addImpliedFaces
+   -- local function used in addImpliedFaces.
+   -- Merge two lists of facets. If a facet is contained in both then
+   -- only include it once.
    unorientedUnion(a : List(OrientedFacet), b : List(OrientedFacet)
             ) : List(OrientedFacet) ==
        res := a
@@ -1907,7 +1920,7 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
    -- A function to take a set of faces and add those that are implied
    -- by the simplicial complex conventions (if they don't already exist).
    -- For example, if the input is a triangle ((1, 2, 3)) then we would add
-   -- its edges ((1, 2), (1, 3), and (2, 3)).
+   -- its points ((1),(2),(3)) and its edges ((1, 2), (1, 3), (2, 3)).
    addImpliedFaces(s : %) : List(List(OrientedFacet)) ==
        inputList : List(List(OrientedFacet)) := reverse(grade(s))
        --print(message "addImpliedFaces s=" << s << _
@@ -1971,7 +1984,6 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
        res := []$List(OrientedFacet)
        for facet in s.SIMP repeat
            if isSubsetOf?(simplex, facet) then
-               --x : OrientedFacet := subtract(simplex, facet)
                x : List(OrientedFacet) := boundary(facet)
                res := concat(res, x)
        [s.VERTSET, s.NUMPOINTS, res]
@@ -2336,8 +2348,8 @@ FiniteCubicalComplex(VS : AbelianGroup) : Exports == Impl where
     boundary : (s : %) -> %
       ++ Boundary operator. Step down to the next lower dimension, this is
       ++ like hollowing out the complex.
-      ++ It takes the highest dimension entries and replaces them with their boundaries,
-      ++ cancelling out where it can.
+      ++ It takes the highest dimension entries and replaces them with
+      ++ their boundaries, cancelling out where it can.
     chain : (s : %) -> ChainComplex
       ++ returns a matrix sequence representing the face maps
       ++ in linear algebra form
@@ -2354,10 +2366,6 @@ FiniteCubicalComplex(VS : AbelianGroup) : Exports == Impl where
 
    -- constructor where the vertex set and cubes are supplied
    cubicalComplex(v : List(VS), fs : List(CubicalFacet)) : % ==
-       --res := []$List(CubicalFacet)
-       --for f in fs repeat
-       --  res := concat(res, cubicalFacet(1, f))
-       --print("cubicalComplex(" << fs << ") res=" << res)
        [v, fs]
 
    -- constructor where the vertex set and cubes are supplied
@@ -2414,8 +2422,8 @@ FiniteCubicalComplex(VS : AbelianGroup) : Exports == Impl where
 
    -- Boundary operator. Step down to the next lower dimension, this is
    -- like hollowing out the complex.
-   -- It takes the highest dimension entries and replaces them with their boundaries,
-   -- cancelling out where it can.
+   -- It takes the highest dimension entries and replaces them with
+   -- their boundaries, cancelling out where it can.
    boundary(s : %) : % ==
        res : % := cubicalComplex(s.VERTSET)
        --facets := []$List(CubicalFacet)
@@ -2427,13 +2435,13 @@ FiniteCubicalComplex(VS : AbelianGroup) : Exports == Impl where
                res := addCube(res, y)
        res
 
-   -- A function to grade faces according to the number of non-degenerate intervals.
-   -- This nests the lists according to their order.
-   -- Verticies, edges, squares and so on.
+   -- A function to grade faces according to the number of
+   -- non-degenerate intervals. This nests the lists according to
+   -- their order. Verticies, edges, squares and so on.
    grade(s : %) : List(List(CubicalFacet)) ==
        simp : List(CubicalFacet) := s.CUBE
-       -- set maxGrade to be the maximum number of non-degenerate intervals
-       -- in any face
+       -- set maxGrade to be the maximum number of non-degenerate
+       -- intervals in any face
        maxGrade : NNI := 0
        for face in simp repeat
            if order(face) > maxGrade then maxGrade := order(face)
@@ -2464,7 +2472,8 @@ FiniteCubicalComplex(VS : AbelianGroup) : Exports == Impl where
        true
 
    -- local function used in addImpliedFaces
-   listUnion(a : List(CubicalFacet), b : List(CubicalFacet)) : List(CubicalFacet) ==
+   listUnion(a : List(CubicalFacet), b : List(CubicalFacet)) : _
+             List(CubicalFacet) ==
        res := []$List(CubicalFacet)
        for a1 in a repeat
            res := concat(res, a1)
@@ -2560,7 +2569,8 @@ FiniteCubicalComplex(VS : AbelianGroup) : Exports == Impl where
    -- This version has options to:
    -- simplify - if true attempts to simplify the group presentation
    -- trace - if true outputs trace of simplification rules used.
-   fundamentalGroup(s:%, simplify : Boolean, trace : Boolean) : GroupPresentation ==
+   fundamentalGroup(s:%, simplify : Boolean, trace : Boolean) : _
+                  GroupPresentation ==
        dc : DeltaComplex(VS) := deltaComplex(s pretend FiniteCubicalComplex(VS))
        fundamentalGroup(dc, simplify, trace)
 
@@ -2771,6 +2781,8 @@ DeltaComplex(VS : AbelianGroup) : Exports == Impl where
            map1 := []$List(List(Integer))
            if grn = 1 then
                -- points
+               -- Special handling for points because they do not
+               -- index into lower dimension.
                map2 := []$List(List(Integer))
                for x in gradeList repeat
                    -- x is an OrientedFacet
@@ -2829,12 +2841,6 @@ DeltaComplex(VS : AbelianGroup) : Exports == Impl where
        vs : List(VS) := fscRep.VERTSET
        if trace then
            print("deltaComplex faceMaps=" << faceMaps )
---       m := fscRep.NUMPOINTS
---       f0 := dim1todim0(faceMaps.last,m)
---       fp : List(List(List(Integer))) := concat(faceMaps,f0)
---       if trace then
---           print(message "deltaComplex faceMaps=" << faceMaps << _
---                         " f0=" << f0 << " fp=" << fp)
        [vs, faceMaps]
 
    -- construct from FiniteCubicalComplex. This builds indexes of
@@ -2852,12 +2858,6 @@ DeltaComplex(VS : AbelianGroup) : Exports == Impl where
        -- now change base indexed to heirarcical indexed
        faceMaps := []$List(List(List(Integer)))
        previousFaceList := first(allFacetsGraded)
---       vs : VS
---       if VS is VertexSetAbstract then
---           vs := vertexSeta(#previousFaceList)$VertexSetAbstract pretend VS
---       else
---           error "deltaComplex: can only handle cubical complexes "
---                 "with abstract vertex set"
        for gradeList in allFacetsGraded for grn in 1..(#allFacetsGraded) repeat
            -- start with a list of empty lists
            grn = 1 => "iterate"
@@ -3153,14 +3153,12 @@ DeltaComplex(VS : AbelianGroup) : Exports == Impl where
                            message("D:"), a::OutputForm])
            res := vconcat(res, row)
            tabNum := tabNum - 1
-       --row : OutputForm := hconcat([message("1D: points 1.."),
-       --                            (s.NUMPOINTS)::OutputForm])
-       --res := vconcat(res, row)
        res
 
    -- coerce DeltaComplex to FiniteSimplicialComplex
    coerce(s : %) : FiniteSimplicialComplex(VS) ==
-       simplicialComplex(s pretend DeltaComplex(VS))
+       simplicialComplexIfCan(s pretend DeltaComplex(VS)) _
+       :: FiniteSimplicialComplex(VS)
 
    -- coerce CubicalDeltaComplex to FiniteCubicalComplex
 --   coerce(s : %) : FiniteCubicalComplex(VS) ==
