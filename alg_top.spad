@@ -1435,7 +1435,7 @@ CoChainComplex(VS : AbelianGroup) : Exports == Impl where
       ++ 2) product of adjacent coboundary maps is zero
     coboundary : (a : %,n : NNI,inp : List(VS)) -> List(VS)
       ++ calculate coboundary at dimention n for a given input
-    homology : (a : %) -> List(Homology)
+    coHomology : (a : %) -> List(Homology)
       ++ calculate homology using SmithNormalForm
 
   Impl ==> add
@@ -1512,14 +1512,14 @@ CoChainComplex(VS : AbelianGroup) : Exports == Impl where
        res
 
    -- calculate homology using SmithNormalForm
-   homology(a : %) : List(Homology) ==
+   coHomology(a : %) : List(Homology) ==
        --print("CoChainComplex homology("  << a << ")")
        res := []$List(Homology)
        prev := empty()$Matrix(Integer)
        notFirst : Boolean := false
        for m1 in a repeat
            if notFirst then
-               --print("chainComplex: " << nrows(m1) << "*" << ncols(m1) <<_
+               --print("coChainComplex: " << nrows(m1) << "*" << ncols(m1) <<_
                --  " " << nrows(prev) << "*" << ncols(prev))
                m2 : Homology := homologyGroup(m1, prev)
                res := concat(res, m2)
@@ -1687,6 +1687,8 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
       ++ returns a matrix sequence representing the face maps
       ++ in linear algebra form
     homology : (s : %) -> List(Homology)
+      ++ calculate homology using SmithNormalForm
+    coHomology : (s : %) -> List(Homology)
       ++ calculate homology using SmithNormalForm
     coerce : (s : %) -> DeltaComplex(VS)
       ++ coerce SimplicialComplex to DeltaComplex
@@ -2128,14 +2130,16 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
    -- returns a matrix sequence representing the face maps
    -- in linear algebra form
    chain(s : %) : ChainComplex ==
-       dc : DeltaComplex(VS) := deltaComplex(s pretend FiniteSimplicialComplex(VS))
+       dc : DeltaComplex(VS) := deltaComplex(_
+                   s pretend FiniteSimplicialComplex(VS))
        cc : ChainComplex := chain(dc)$DeltaComplex(VS)
        cc
 
    -- returns a matrix sequence representing the face maps
    -- in linear algebra form
    coChain(s : %) : CoChainComplex(VS) ==
-       dc : DeltaComplex(VS) := deltaComplex(s pretend FiniteSimplicialComplex(VS))
+       dc : DeltaComplex(VS) := deltaComplex(_
+                   s pretend FiniteSimplicialComplex(VS))
        cc : CoChainComplex(VS) := coChain(dc)$DeltaComplex(VS)
        cc
 
@@ -2143,6 +2147,12 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
    homology(s : %) : List(Homology) ==
        dc : DeltaComplex(VS) := deltaComplex(s pretend FiniteSimplicialComplex(VS))
        homology(dc)$DeltaComplex(VS)
+
+   -- calculate homology using SmithNormalForm
+   coHomology(s : %) : List(Homology) ==
+       dc : DeltaComplex(VS) := deltaComplex(_
+                   s pretend FiniteSimplicialComplex(VS))
+       coHomology(dc)$DeltaComplex(VS)
 
    -- Forms product of two simplicial complexes.
    -- For more detailed explanation of simplex product code see:
@@ -2700,6 +2710,8 @@ DeltaComplex(VS : AbelianGroup) : Exports == Impl where
       ++ Generates fundamental group from this simplicial complex.
     homology : (a : %) -> List(Homology)
       ++ calculate homology using SmithNormalForm
+    coHomology : (a : %) -> List(Homology)
+      ++ calculate cohomology using SmithNormalForm
     coerce : (s : %) -> FiniteSimplicialComplex(VS)
       ++ coerce DeltaComplex to FiniteSimplicialComplex
     -- coerce : (s : %) -> FiniteCubicalComplex(VS)
@@ -2927,7 +2939,7 @@ DeltaComplex(VS : AbelianGroup) : Exports == Impl where
    chain(s : %) : ChainComplex ==
        res := []$List(Matrix(Integer))
        maps1 : List(List(List(Integer))) := reverse(s.MAPS)
-       n_rows : NNI := 1 --#first(maps1)
+       n_rows : NNI := 1
        --print(message "chain maps1=" << maps1 << " n_rows=" << n_rows)
        res := cons(zero(1, n_rows), res)
        for faces in maps1 repeat
@@ -2963,29 +2975,36 @@ DeltaComplex(VS : AbelianGroup) : Exports == Impl where
    coChain(s : %) : CoChainComplex(VS) ==
        res := []$List(Matrix(Integer))
        maps1 : List(List(List(Integer))) := reverse(s.MAPS)
-       n_rows : NNI := #first(maps1)
-       res := cons(zero(n_rows, 1), res)
+       n_rows : NNI := 1
+       --print(message "cochain maps1=" << maps1 << " n_rows=" << n_rows)
+       res := cons(zero(1, n_rows), res)
        for faces in maps1 repeat
-           -- print("cochain faces=" << faces << " res=" << res)
+           --print(message "cochain faces=" << faces << " res=" << res)
            n_cols := #(faces)
-           -- print("cochain n_rows=" << n_rows << " n_cols=" << n_cols)
-           m : Matrix(Integer) := zero(n_rows, n_cols)
-           --print("cochain 2 nrows=" << nrows(m) << " ncols=" << ncols(m))
+           -- zero constructs a Matrix containing '0's.
+           m : Matrix(Integer) := zero(n_cols, n_rows)
+           --print(message "cochain zero matrix=" << m << _
+           --      message " nrows=" << n_rows << _
+           --      message " ncols=" << n_cols)
            for u in faces for nu in 1..(#faces) repeat
                for v in u repeat
                    v2 : Integer := abs(v)
-                   --print("cochain(" << maps1 << ") row=" << nu << " col="
-                   --      << v2 << " nRows=" << nRows << " nCols=" << nCols)
-                   ele : Integer := (v > 0 => 1; -1)
-                   -- if even?(nv) then ele := -1
-                   setelt!(m, v2, nu, qelt(m, v2, nu) + ele)
-           res := cons(transpose(m), res)
+                   if v2 > 0 then
+                       ele : Integer := (v > 0 => 1; -1)
+                       --print(message " col=" << v2 << _
+                       --  message " row=" << nu << _
+                       --  message " n_cols=" << n_cols << " ele=" << ele)
+                       setelt!(m, nu, v2, qelt(m, nu, v2) + ele)
+           res := cons(m, res)
+           -- adjacent matrices can be multiplied together so the
+           -- number of rows in the next matrix is equal to the
+           -- number of columns in this matrix.
            n_rows := n_cols
        -- add matrix with zero cols
-       --print("cochain nRows=" << nCols << " nCols=" << 0)
-       m : Matrix(Integer) := new(n_rows, 0, 0)
-       res := cons(transpose(m), res)
-       coChainComplex(reverse!(res))
+       --print(message "cochain n_rows=" << n_rows)
+       m : Matrix(Integer) := new(0 ,n_rows, 0)
+       res := cons(m, res)
+       coChainComplex(res)
 
    -- calculate homology using SmithNormalForm
    homology(a : %) : List(Homology) ==
@@ -2993,6 +3012,13 @@ DeltaComplex(VS : AbelianGroup) : Exports == Impl where
        cc : ChainComplex := chain(a)
        validate(cc)
        homology(cc)
+
+   -- calculate cohomology using SmithNormalForm
+   coHomology(a : %) : List(Homology) ==
+       --print("DeltaComplex cohomology("  << a << ")")
+       cc : CoChainComplex(VS) := coChain(a)
+       validate(cc)
+       coHomology(cc)
 
    -- Generates graph AKA 1-skeleton.
    -- Used to generate fundamental group
