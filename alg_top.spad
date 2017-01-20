@@ -2940,11 +2940,12 @@ DeltaComplex(VS : AbelianGroup) : Exports == Impl where
        res := []$List(Matrix(Integer))
        maps1 : List(List(List(Integer))) := reverse(s.MAPS)
        n_rows : NNI := 1
-       --print(message "chain maps1=" << maps1 << " n_rows=" << n_rows)
-       res := cons(zero(1, n_rows), res)
+       --print(message "chain maps1=" << maps1)
        for faces in maps1 repeat
-           --print(message "chain faces=" << faces << " res=" << res)
            n_cols := #(faces)
+           --print(message "chain faces=" << faces << _
+           --      message " n_rows=" << n_rows << _
+           --      message " n_cols=" << n_cols )
            -- zero constructs a Matrix containing '0's.
            m : Matrix(Integer) := zero(n_rows, n_cols)
            --print(message "chain zero matrix=" << m << _
@@ -2963,6 +2964,7 @@ DeltaComplex(VS : AbelianGroup) : Exports == Impl where
            -- adjacent matrices can be multiplied together so the
            -- number of rows in the next matrix is equal to the
            -- number of columns in this matrix.
+           --print(message "chain res=" << res)
            n_rows := n_cols
        -- add matrix with zero cols
        --print(message "chain n_rows=" << n_rows)
@@ -3430,7 +3432,7 @@ CubicalComplexFactory() : with
   moebiusBand : () -> FiniteCubicalComplex(Integer)
     ++ Generate a cubical complex of the surface of a Moebius band.
     ++ A one sided surface with a single external boundary line.
-  projectivePlane : () -> FiniteCubicalComplex(Integer)
+  projectiveSpace : (dim : NNI) -> FiniteCubicalComplex(Integer)
     ++ Generate a cubical complex of the surface of a projective plane.
     ++ A one sided surface which cannot be embedded in 3D space without
     ++ intersecting itself. There are no external boundaries, every edge
@@ -3477,8 +3479,11 @@ CubicalComplexFactory() : with
   -- generate a cubical complex of the surface of a projective plane.
   -- (A punctured projective plane is equivalent to a Moebius band)
   -- see [13] for details
-  projectivePlane() : FiniteCubicalComplex(Integer) ==
+  projectiveSpace(dim : NNI) : FiniteCubicalComplex(Integer) ==
       ASIMP := FiniteCubicalComplex(Integer)
+      if dim ~= 2 then
+          error "projectiveSpace only defined for plane"
+      -- TODO define for other dimensions
       v1 : List(List(List(Integer))) := ([[[1, 2], [1, 1], [1, 1], [1, 2],
           [1, 1]], [[1, 2], [1, 1], [1, 1], [1, 1], [1, 2]], _
                     [[1, 1], [1, 2], [1, 2], [1, 1], [1, 1]], _
