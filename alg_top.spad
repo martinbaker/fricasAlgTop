@@ -1312,7 +1312,7 @@ DeRhamComplex?
 ++   Delta Complexes are defined by a sequence of 'face maps', These can
 ++   be represented by a list of matrices.
 ++   for more documentation see:
-++   http://www.euclideanspace.com/prog/scratchpad/mycode/topology/
+++   http://www.euclideanspace.com/prog/scratchpad/mycode/topology/chain/index.htm
 ++ Date Created: March 2016
 ++ Basic Operations:
 ++ Related packages:
@@ -1483,16 +1483,18 @@ CoChainComplex(VS : AbelianGroup) : Exports == Impl where
            last := m
        true
 
-   -- calculate coboundary at dimention n for a given input
+   -- calculate coboundary at dimension n for a given input
    coboundary(a : %,n : NNI,inp : List(VS)) : List(VS) ==
        --print(message "coboundary(" << a << message ", " << n << _
        --message ", " << inp << message ")")
+       maps : List(Matrix(Integer)) := _
+              reverse(a pretend List(Matrix(Integer)))
        res : List(VS) := []
        inpn : NNI := #inp
        for p in 1..inpn repeat
            base : List(Integer) := [(if x=p then 1 else 0) for x in 1..inpn]
            b : Vector(Integer) := vector(base)
-           m : Matrix(Integer) := transpose(a.n)
+           m : Matrix(Integer) := transpose(maps.n)
            vs : Vector(Integer) := b*m
            --print(message "b=" << b << message " m=" << m << _
            --message " vs=" << vs)
@@ -1645,6 +1647,8 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
       ++ set that may geometrically be thought of as a cone over T with
       ++ tip of shape S.
       ++ simplicialJoin is commutative and associative.
+      ++ For more information:
+      ++ \url{http://www.euclideanspace.com/prog/scratchpad/mycode/topology/simplex/join/index.htm}
     merge : (a : %, b : %) -> %
       ++ Forms union of two simplicial complexes.
     product : (a : %, b : %) -> %
@@ -1669,6 +1673,8 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
       ++ don't want this use alternative function of same name.
       ++ TODO write a faster implemetation which only generates edge and
       ++ triangle faceMaps.
+      ++ For more information:
+      ++ \url{http://www.euclideanspace.com/prog/scratchpad/mycode/topology/homotopy/index.htm}
     fundamentalGroup : (s : %, simplify : Boolean, trace : Boolean) -> GroupPresentation
       ++ Generates fundamental group from this simplicial complex.
       ++ This works by converting to a DeltaComplex and then generating the
@@ -1680,16 +1686,25 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
       ++ This version has options to:
       ++ simplify - if true attempts to simplify the group presentation
       ++ trace - if true outputs trace of simplification rules used.
+      ++ For more information:
+      ++ \url{http://www.euclideanspace.com/prog/scratchpad/mycode/topology/homotopy/index.htm}
     chain : (s : %) -> ChainComplex
       ++ returns a matrix sequence representing the face maps
       ++ in linear algebra form
+      ++ For more information:
+      ++ \url{http://www.euclideanspace.com/prog/scratchpad/mycode/topology/chain/index.htm}
     coChain : (s : %) -> CoChainComplex(VS)
       ++ returns a matrix sequence representing the face maps
       ++ in linear algebra form
+      ++ For more information:
+      ++ \url{http://www.euclideanspace.com/prog/scratchpad/mycode/topology/chain/cochain/index.htm}
     homology : (s : %) -> List(Homology)
       ++ calculate homology using SmithNormalForm
+      ++ For more information:
+      ++ \url{http://www.euclideanspace.com/prog/scratchpad/mycode/topology/homology/index.htm}
     coHomology : (s : %) -> List(Homology)
-      ++ calculate homology using SmithNormalForm
+      ++ calculate cohomology using SmithNormalForm
+      ++ \url{http://www.euclideanspace.com/prog/scratchpad/mycode/topology/homology/cohomol/index.htm}
     coerce : (s : %) -> DeltaComplex(VS)
       ++ coerce SimplicialComplex to DeltaComplex
 
@@ -1734,10 +1749,14 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
        [v,0, res]
 
    -- construct FiniteSimplicialComplex from DeltaComplex.
+   -- For more information:
+   -- \url{http://www.euclideanspace.com/prog/scratchpad/mycode/topology/delta/delta2simplex/index.htm}
    simplicialComplexIfCan(dc : DeltaComplex(VS)) : Union(%, "failed") ==
        simplicialComplexIfCan(dc,false)
 
    -- construct FiniteSimplicialComplex from DeltaComplex with trace.
+   -- For more information:
+   -- \url{http://www.euclideanspace.com/prog/scratchpad/mycode/topology/delta/delta2simplex/index.htm}
    simplicialComplexIfCan(dc : DeltaComplex(VS),trace : Boolean) : _
             Union(%, "failed") ==
        if trace then print("simplicialComplex(" << dc << ")")
@@ -2123,8 +2142,10 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
    -- This version has options to:
    -- simplify - if true attempts to simplify the group presentation
    -- trace - if true outputs trace of simplification rules used.
-   fundamentalGroup(s : %, simplify : Boolean, trace : Boolean) : GroupPresentation ==
-       dc : DeltaComplex(VS) := deltaComplex(s pretend FiniteSimplicialComplex(VS))
+   fundamentalGroup(s : %, simplify : Boolean, _
+                    trace : Boolean) : GroupPresentation ==
+       dc : DeltaComplex(VS) := deltaComplex(_
+                    s pretend FiniteSimplicialComplex(VS))
        fundamentalGroup(dc, simplify, trace)
 
    -- returns a matrix sequence representing the face maps
@@ -2145,7 +2166,8 @@ FiniteSimplicialComplex(VS : AbelianGroup) : Exports == Impl where
 
    -- calculate homology using SmithNormalForm
    homology(s : %) : List(Homology) ==
-       dc : DeltaComplex(VS) := deltaComplex(s pretend FiniteSimplicialComplex(VS))
+       dc : DeltaComplex(VS) := deltaComplex(_
+               s pretend FiniteSimplicialComplex(VS))
        homology(dc)$DeltaComplex(VS)
 
    -- calculate homology using SmithNormalForm
@@ -2974,12 +2996,13 @@ DeltaComplex(VS : AbelianGroup) : Exports == Impl where
 
    -- returns a matrix sequence representing the face maps
    -- in linear algebra form
+   -- For more information:
+   -- \url{http://www.euclideanspace.com/prog/scratchpad/mycode/topology/chain/cochain/index.htm}
    coChain(s : %) : CoChainComplex(VS) ==
        res := []$List(Matrix(Integer))
        maps1 : List(List(List(Integer))) := reverse(s.MAPS)
        n_rows : NNI := 1
        --print(message "cochain maps1=" << maps1 << " n_rows=" << n_rows)
-       res := cons(zero(1, n_rows), res)
        for faces in maps1 repeat
            --print(message "cochain faces=" << faces << " res=" << res)
            n_cols := #(faces)
@@ -3016,6 +3039,8 @@ DeltaComplex(VS : AbelianGroup) : Exports == Impl where
        homology(cc)
 
    -- calculate cohomology using SmithNormalForm
+   -- For more information:
+   -- \url{http://www.euclideanspace.com/prog/scratchpad/mycode/topology/homology/cohomol/index.htm}
    coHomology(a : %) : List(Homology) ==
        --print("DeltaComplex cohomology("  << a << ")")
        cc : CoChainComplex(VS) := coChain(a)
