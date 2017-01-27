@@ -15,7 +15,7 @@ There are two such structures in this file:
 \item GroupPresentation - Defines a group by its generators and
 relations. Used to hold fundamental group (homotopy).
 \item Homology - Intended to hold homology which is calculated using
-integer SmithNormalForm. This is an Abelian group.
+integer Smith normal form. This is an abelian group.
 \end{itemize}
 I have put a fuller explanation of this code here:
 \url{http://www.euclideanspace.com/prog/scratchpad/mycode/discrete/finiteGroup/presentation/}
@@ -35,9 +35,9 @@ indicate the inverse of the generator. So if '1' represents the
 generator 'A' then '-1' represents its inverse 'A^-1'.
 
 Note that the use of negative indices to represent the inverse does
-not imply an Abelian group. This is just a convenient way to code
+not imply an abelian group. This is just a convenient way to code
 the representation and, in general, the group is not necessarily
-Abelian.
+abelian.
 The notation uses the following conventions.
 \begin{itemize}
 \item If index is positive it represents a generator shown as an
@@ -1351,7 +1351,7 @@ GroupPresentation() : Exports == Impl where
 \section{Homology}
 
 Intended to hold homology which is calculated using integer
-SmithNormalForm. This is an Abelian group.
+Smith normal form. This is an abelian group.
 
 It would be good if this could be modified to be based on
 FreeAbelianMonoid by Manuel Bronstein.
