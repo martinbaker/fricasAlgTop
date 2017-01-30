@@ -507,6 +507,9 @@ GroupPresentation() : Exports == Impl where
     dihedralGroup : (n : PI) -> %
       ++ dihedralGroup(n) constructs the dihedral group of order 2n
       ++ acting on integers 1, ..., N.
+    symmetricGroup : (n : PI) -> %
+      ++ symmetricGroup(n) constructs the symmetric group of order n-1.
+      ++ Note: generates all possible relations may not be minimal.
     toPermutationIfCan : (a : %) -> Union(PermutationGroup Integer, "failed")
       ++ convert to permutation group return "failed" for infinite groups.
       ++ For more information about the algorithm see:
@@ -1093,37 +1096,114 @@ GroupPresentation() : Exports == Impl where
        groupPresentation(ga, ra)
 
    -- dihedralGroup(n) constructs the dihedral group of order 2n
-   -- acting on integers 1, ..., N.
+   -- acting on integers 1, ..., n.
    dihedralGroup(n : PI) : % ==
        c1 : % := cyclicGroup(n)
        c2 : % := cyclicGroup(2)
        directProduct(c1, c2)
 
+   -- symmetricGroup(n) constructs the symmetric group of order n-1.
+   symmetricGroup(n : PI) : % ==
+       if n<2 then return groupPresentation([])
+       m : PI := (n-1) :: PI
+       ga : List(NNI) := [x for x in 1..m]
+       r : List(List(Integer)) := []$List(List(Integer))
+       for a in 1..m repeat
+           for b in 1..m repeat
+               if a = b then
+                   -- all generators square to 1
+                   y : List(Integer) := [a,a]
+                   r := concat(r,y)
+               if a < b then
+                   -- non squares anticommute
+                   y : List(Integer) := [a,b,-a,-b]
+                   r := concat(r,y)
+               if a+1 = b then
+                   -- swapping the ith and (i + 1)th position cubed
+                   y : List(Integer) := [a,b,a,b,a,b]
+                   r := concat(r,y)
+       simplify(groupPresentation(ga, r),false)
+
    A2D ==> TwoDimensionalArray NNI
    A1D ==> OneDimensionalArray NNI
 
+   -- TC_state (Todd-Cox State)
+   -- This holds tables while they are being built up during the
+   -- Todd-Cox algorithm. Initially the elements of coset tables
+   -- are set to zero then index values are incrementally
+   -- derived during the algorithm. When complete the coset table
+   -- will be used to determine the coset permutations.
+   -- The components of this state are:
+   -- coset_table          : A 2D array with
+   --                      a row for each point
+   --                      only 'number_of_indices' are used
+   --                      other rows are empty.
+   --                      a column for a generator/coset
+   -- equiv_table          : Tracks coincidences
+   --                      non-coincidences are self loops
+   --                      coincidences are chained to non-coincidences
+   -- inverse_table        : Inverse of generators (not yet used).
+   -- number_of_generators : Actual number of distinct cosets.
+   --                        So we can compress tables if there are
+   --                        too many coincidences.
+   -- number_of_indices    : allocated rows (may not be used) of
+   --                        coset table.
+   -- number_of_points     : size of set being permuted.
    TC_state ==> Record(coset_table : A2D, equiv_table : A1D,
                        inverse_table : A1D,
                        number_of_generators : NNI,
                        number_of_indices : NNI, number_of_points : NNI)
 
+   -- Local function to print CosetTable
+   -- Using this avoids displaying empty rows that are not used yet.
+   outCosetTable(ct : A2D,np : NNI) : OutputForm ==
+       if np < 1 then return ct::OutputForm
+       if nrows(ct) > np then
+           part1 : NNI := np
+           part2 : NNI := subtractIfCan(nrows(ct),np) :: NNI
+           cts : List(A2D) := vertSplit(ct,[part1,part2])
+           ct := cts.1
+           --return ct::OutputForm << cts.2
+       ct::OutputForm
+
+   -- Local function to print status
+   -- Using this avoids displaying empty rows that are not used yet.
+   outStatus(state : TC_state) : OutputForm ==
+       ct : A2D := state.coset_table
+       np : NNI := state.number_of_indices
+       outCosetTable(ct,np)
+
+   -- Local function to find an index in equiv_table.
+   -- Parameter information:
+   -- et = equiv_table
+   -- ind = index to be found
    find(et : A1D, ind : NNI) : NNI ==
        ind = 0 => ind
        qelt(et, ind) = ind => ind
        j := ind
+       -- starting at ind follow pointer until j=pj
        pj := 0
-       while j ~= pj repeat 
+       while not(j = pj) repeat
            pj := j
            j := qelt(et, j)
        j := ind
        -- track compression
-       while j ~= pj repeat
+       while not(j = pj) repeat
            nj := qelt(et, j)
            qsetelt!(et, j, pj)
            j := nj
        pj
 
-   infer_coincidencies(ct : A2D, et : A1D, pb : NNI, pe : NNI) : Void ==
+   -- Local function to infer coincidencies
+   -- Parameter information:
+   -- ct = coset_table
+   -- et = equiv_table
+   -- pb = pointer begin
+   -- pe = pointer end
+   infer_coincidencies(ct : A2D, et : A1D, pb : NNI, pe : NNI,_
+                       trace : Boolean) : Void ==
+       if trace then print(message("coincidence: begin=") << pb _
+                        << message(" end=") << pe)
        if pe < pb then
            (pb, pe) := (pe, pb)
        qsetelt!(et, pe, pb)
@@ -1138,7 +1218,7 @@ GroupPresentation() : Exports == Impl where
                qsetelt!(ct, pb, i, i2)
            i2 = 0 =>
                qsetelt!(ct, pe, i, i1)
-           infer_coincidencies(ct, et, i1, i2)
+           infer_coincidencies(ct, et, i1, i2, trace)
 
    -- Local function used by toPermutationIfCan.
    -- If we still have gaps (zeroes) in permutations then we may
@@ -1151,14 +1231,12 @@ GroupPresentation() : Exports == Impl where
    -- gensR is called as a Reference in case we need to
    -- eliminate duplicate points.
    inferFromRelations(state : TC_state,
-                      rels : List(List(Integer)),trace : Boolean) : Boolean ==
+                      rels : List(List(Integer)),
+                      trace : Boolean) : Boolean ==
        ct := state.coset_table
        et := state.equiv_table
-       n_ind : NNI := state.number_of_indices 
-       print(message("inferFromRelations"))
-       --print(message "inferFromRelations enter generators=" <<
-       --   generators <<  message " rels=" << rels <<
-       --     message " numberPoints=" << numberPoints)
+       n_ind : NNI := state.number_of_indices
+       if trace then print(message "inferFromRelations rels=" << rels)
        inv_offset := maxColIndex(ct) quo 2
        res : Boolean := false
        add_to : NNI := 0
@@ -1174,10 +1252,9 @@ GroupPresentation() : Exports == Impl where
                -- how far can we get from beginning
                i : NNI := pn
                genIn : Integer := 0
-               for genIndex in rel repeat
-                   cur_g := genIndex
+               for genIndex in rrel repeat
                    genIn := ii :=
-                       genIndex > 0 => genIndex
+                       0 < genIndex => genIndex
                        -genIndex + inv_offset
                    i := qelt(ct, i, ii)
                    i = 0 => break
@@ -1185,65 +1262,46 @@ GroupPresentation() : Exports == Impl where
                    gb := gb + 1
                    pb := i
                gap := relWidth - gb
-               gap = 0 =>
-                   pb = pn => "skip"
-                   infer_coincidencies(ct, et, pb, pn)
                ge : NNI := 0 -- generator index in backward sequence
                pe : NNI := pn -- point index in backward sequence
                -- how far can we get from end
                i : NNI := pn
-               for genIndex in rrel repeat
+               for genIndex in rel while ge < gap repeat
                    genIndex := - genIndex
                    genInv := ii :=
-                       genIndex > 0 => genIndex
+                       0 < genIndex => genIndex
                        -genIndex + inv_offset
                    i := qelt(ct, i, ii)
                    i = 0 => break
                    i := find(et, i)
                    ge := ge+1
-                   ge = gap => break
                    pe := i
                gap := gap - ge
                -- print(message("gap = ") << gap)
-               gap < 0 =>
-                   print(message("rel = ") << rel <<
-                             message(" pn = ") << pn <<
-                             message(" pb = ") << pb <<
-                             message(" pe = ") << pe <<
-                             message(" gb = ") << gb <<
-                             message(" ge = ") << ge <<
-                             message(" genIn = ") << genIn <<
-                             message(" genInv = ") << genInv)
-                   print(ct::OutputForm)
-                   error "impossible: gap < 0"
                gap = 1 =>
                    res := true
                    qelt(ct, pb, genIn) ~= 0 => error "impossible 1"
                    if trace then
                        print(message "inferFromRelations genIn=" << genIn << _
                              message " gb=" << gb)
-                   setelt!(ct, pb, genIn, pe)
-                   qelt(ct, pe, genInv) ~= 0 =>
-                       print(message("rel = ") << rel <<
-                             message(" pn = ") << pn <<
-                             message(" pb = ") << pb <<
-                             message(" pe = ") << pe <<
-                             message(" genIn = ") << genIn <<
-                             message(" genInv = ") << genInv)
-                       print(ct::OutputForm)
-                       error "impossible 2"
-                   setelt!(ct, pe, genInv, pb)
+                   qsetelt!(ct, pb, genIn, pe)
+                   qelt(ct, pe, genInv) ~= 0 => error "impossible 2"
+                   qsetelt!(ct, pe, genInv, pb)
                gap = 0 =>
                    pb = pe => "skip"
                    -- coincidence
-                   print(message("coincidence: ") << pb << message(" ") << pe)
-                   infer_coincidencies(ct, et, pb, pe)
+                   if trace then
+                      print(message("coincidence: ") << pb << message(" ") <<
+                          pe << message(" rel = ") << rel << message(" pn = ")
+                          << pn)
+                      -- print(ct::OutputForm)
+                   infer_coincidencies(ct, et, pb, pe, trace)
                if add_to = 0 or pb < add_to or
                   (pb = add_to and gap < add_gap) then
                    add_to := pb
                    add_gen := genIn
                    add_gap := gap
-       if not(res) and add_gap > 0 then
+       if not(res) and 0 < add_gap then
            if n_ind >= (o_size := maxRowIndex(ct)) then
                n_size : NNI := qcoerce(2*o_size)
                nct := new(n_size, qcoerce(maxColIndex(ct)), 0)$A2D
@@ -1258,45 +1316,19 @@ GroupPresentation() : Exports == Impl where
                et := net
                state.coset_table := ct
                state.equiv_table := et
-           print(message("adding action of ")<<add_gen << message(" on ")
-                 << add_to << message(" to be ") << (n_ind + 1))
+           if trace then
+               print(message("adding action of ") << add_gen <<
+                     message(" on ") << add_to << message(" to be ")
+                     << (n_ind + 1))
            qsetelt!(ct, add_to, add_gen, n_ind + 1)
            add_gen :=
-               add_gen > inv_offset => add_gen - inv_offset
+               inv_offset < add_gen => add_gen - inv_offset
                add_gen + inv_offset
            qsetelt!(ct, n_ind + 1, add_gen, add_to)
-           print(ct::OutputForm)
+           if trace then print outStatus(state)
            state.number_of_indices := n_ind + 1
            res := true
        res
-
-   -- Local function used by toPermutationIfCan
-   -- If we still have gaps (zeroes) in generators and we cannot deduce
-   -- any futher then add a point.
-   addPoint(gensR : Reference TwoDimensionalArray NNI,_
-                      rels : List(List(Integer)),trace : Boolean) : Boolean ==
-       generators : TwoDimensionalArray NNI := deref(gensR)
-       numberPoints : NNI := maxRowIndex(generators) :: NNI
-       --print(message "addPoint: generators=" << generators)
-       for gn in 1..nrows(generators) repeat
-           --print(message "addPoint: gn=" << gn)
-           for gp in 1..ncols(generators) repeat
-               --print(message "addPoint: gp=" << gp)
-               --genIn : NNI := abs(r.n) :: NNI
-               if elt(generators,gn,gp) = 0 then
-                   --print(message "addPoint: gp=" << gp)
-                   if trace then
-                       print(message("addPoint: cannot deduce more so adding"
-                                     " a point"))
-                       print(message "adding:" << gp << _
-                              message " at row:" << gn)
-                   setelt!(generators,gn,gp,numberPoints+1)
-                   numGens : NNI := maxColIndex(generators) :: NNI
-                   newRow : TwoDimensionalArray NNI := new(1,numGens,0)
-                   generators := vertConcat(generators,newRow)
-                   setref(gensR,generators)
-                   return true
-       false
 
    -- Local function used by relatorTables.
    -- Invert a map that is implemented as a 1D table
@@ -1310,23 +1342,26 @@ GroupPresentation() : Exports == Impl where
        invm
 
    -- Local function to construct relator tables.
-   -- Although relator tables are used when manually calculating Todd-Cod for
-   -- computations it seems easier to construct dynamically as required.
-   -- So this function only used for trace output.
-   relatorTables(gensR : Reference TwoDimensionalArray NNI,_
-                 rels : List(List(Integer))) : List TwoDimensionalArray NNI ==
-       generators : TwoDimensionalArray NNI := deref(gensR)
-       genLists : List TwoDimensionalArray NNI := _
-                  horizSplit(generators,ncols(generators) :: PositiveInteger)
-       invGenLists : List TwoDimensionalArray NNI :=
+   -- Although relator tables are used when manually calculating
+   -- Todd-Cod for computations it seems easier to construct
+   -- dynamically as required. So this function only used for trace
+   -- output.
+   relatorTables(state : TC_state,_
+                 rels : List(List(Integer))) : List A2D ==
+       ct := state.coset_table
+       np : NNI := state.number_of_indices
+       --generators : A2D := deref(gensR)
+       genLists : List A2D := _
+                  horizSplit(ct,ncols(ct) :: PositiveInteger)
+       invGenLists : List A2D :=
                             [invertMap(a) for a in genLists]
-       relators : List TwoDimensionalArray NNI := []
+       relators : List A2D := []
        for r in rels repeat
-           relator : TwoDimensionalArray NNI := new(0,0,0)
+           relator : A2D := new(0,0,0)
            fst : Boolean := true
            for g in r repeat
                gNum : NNI := abs(g) :: NNI
-               relatorn : TwoDimensionalArray NNI := _
+               relatorn : A2D := _
                    if g>0 then genLists.gNum else invGenLists.gNum
                --print(message "relatorTables genLists=" << genLists << _
                --      message " gNum=" << gNum)
@@ -1336,7 +1371,13 @@ GroupPresentation() : Exports == Impl where
                        fst := false
                    else
                        relator := horizConcat(relator,relatorn)
-           relators := concat(relators,relator)
+           relatorTrim := relator
+           if nrows(relatorTrim) > np then
+               part1 : NNI := np
+               part2 : NNI := subtractIfCan(nrows(relatorTrim),np) :: NNI
+               cts : List(A2D) := vertSplit(relatorTrim,[part1,part2])
+               relatorTrim := cts.1
+           relators := concat(relators,relatorTrim)
        relators
 
    -- if generators contain any zeroes return false.
@@ -1350,9 +1391,10 @@ GroupPresentation() : Exports == Impl where
        true
 
    -- convert list of generators to PermutationGroup
-   generators2Permutation(state : TC_state) : PermutationGroup Integer ==
+   generators2Permutation(state : TC_state, _
+                       trace : Boolean) : PermutationGroup Integer ==
        ct := state.coset_table
-       print(message "generators2Permutation generators=")
+       if trace then print(message "generators2Permutation generators=")
        -- genLists : List TwoDimensionalArray NNI := _
        --           horizSplit(generators,ncols(generators) :: PositiveInteger)
        n_gens := state.number_of_generators
@@ -1373,7 +1415,7 @@ GroupPresentation() : Exports == Impl where
                kk := qelt(net, find(et, kk))
                qsetelt!(perm_lists, j, cons(kk, qelt(perm_lists, j)))
        pl : List(Permutation(Integer)) := []
-       print(perm_lists::OutputForm)
+       if trace then print(perm_lists::OutputForm)
        for j in 1..n_gens repeat
            gl := reverse!(perm_lists(j))
            p := coerceImages(gl)$Permutation(Integer)
@@ -1397,7 +1439,7 @@ GroupPresentation() : Exports == Impl where
        -- at 1 and increases when required to fill in a gap in relator tables.
        gs : List(NNI) := entries(a.gens)
        rs : List(List(Integer)) := a.rels
-       if #gs=0 and #rs=0 then
+       if #gs = 0 and #rs = 0 then
            -- if no generators return trivial group
            unit : Permutation(Integer) := 1
            return permutationGroup([unit])
@@ -1414,7 +1456,7 @@ GroupPresentation() : Exports == Impl where
        -- Permutations will hold a permutation for each generator. This will
        -- be built up as we get more information.
        loopBreaker : NNI := 0
-       while loopBreaker < 10000 repeat
+       while loopBreaker < 100000 repeat
            loopBreaker := loopBreaker + 1
            changedByDeduction : Boolean := inferFromRelations(state, rs, trace)
            if not(changedByDeduction) then
@@ -1424,11 +1466,9 @@ GroupPresentation() : Exports == Impl where
                if not validateGenerators(gensR) then
                    error "toPermutationIfCan: zeroes in generators"
 )endif
-               return generators2Permutation(state)
-)if false
+               return generators2Permutation(state, trace)
            if trace then print(message "relatorTables=" <<
-                               relatorTables(gensR,rs))
-)endif
+                               relatorTables(state,rs))
        "failed"
 
    -- output
