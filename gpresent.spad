@@ -1462,10 +1462,9 @@ GroupPresentation() : Exports == Impl where
            if not(changedByDeduction) then
                -- print(message("finished"))
                -- print(state::OutputForm)
-)if false
+               return generators2Permutation(state, trace)
                if not validateGenerators(gensR) then
-                   error "toPermutationIfCan: zeroes in generators"
-)endif
+                               relatorTables(state,rs))
                return generators2Permutation(state, trace)
            if trace then print(message "relatorTables=" <<
                                relatorTables(state,rs))
