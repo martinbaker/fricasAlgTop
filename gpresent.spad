@@ -1463,9 +1463,6 @@ GroupPresentation() : Exports == Impl where
                -- print(message("finished"))
                -- print(state::OutputForm)
                return generators2Permutation(state, trace)
-               if not validateGenerators(gensR) then
-                               relatorTables(state,rs))
-               return generators2Permutation(state, trace)
            if trace then print(message "relatorTables=" <<
                                relatorTables(state,rs))
        "failed"
