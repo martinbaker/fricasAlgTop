@@ -1,3 +1,165 @@
+)if false
+\documentclass{article}
+\usepackage{axiom}
+\usepackage{url}
+\begin{document}
+\title{PermutationGroup}
+\maketitle
+\begin{abstract}
+The original authors provided minimal documentation apart from a
+reference to a paper:
+
+C. Sims: Determining the conjugacy classes of a permutation group,
+in Computers in Algebra and Number Theory, SIAM-AMS Proc., Vol. 4,
+Amer. Math. Soc., Providence, R. I., 1971, pp. 191-195
+
+I (Martin Baker) don't want to try to speak for the original
+authors but I don't think they provided enough information to be able
+to use or develop the software without spending a lot of time tracing
+through the code to discover its secrets. I think it is very wasteful
+for every potential user to have to do this. I was therefore motivated
+to write these notes. I wish such information were in a place
+where users and developers can find it (for instance, I can't find
+the above paper online).
+
+I did find some other sources for information about the
+Schreier-Sims algorithm such as this:
+\url{https://en.wikipedia.org/wiki/Schreier%E2%80%93Sims_algorithm}
+
+Waldek Hebisch referred to these notes by A. Hulpke which contain a
+sketch of the algorithm.
+\url{http://www.math.colostate.edu/~hulpke/CGT/cgtnotes.pdf}
+
+Waldeks description on FriCAS forum here:
+\url{https://groups.google.com/forum/?hl=en#!topic/fricas-devel/EtLwgd2dWNU}
+
+I have therefore put together this together with what I have worked
+out myself to attempt this overview of PermutationGroup code to
+add some documentation and comments here.
+
+I find it improves the documentation to use diagrams, I have
+therefore put this enhanced documentation on the web page here:
+\url{http://www.euclideanspace.com/prog/scratchpad/mycode/discrete/finiteGroup/}
+\end{abstract}
+\section{Introduction}
+Permutation groups are defined by 2 domains:
+\begin{itemize}
+\item PermutationGroup
+\item Permutation
+\end{itemize}
+Permutation is a domain which can be used to compute permutations. It
+is also an implementation of Group category.
+\begin{itemize}
+\item Its '%' will contain something representing a
+single element of the group in this case a single permutation.
+\item Its functions will include Group operations such as '*'.
+\end{itemize}
+PermutationGroup represents the whole group, that is:
+\begin{itemize}
+\item Its '%' identifies it as say 'cyclic group 5' or
+    'dihedral group 3'.
+\item The functions will be functions on the whole group
+    such as: sum, product, quotient, subgroup, order, orbit, etc.
+\end{itemize}
+So we would expect PermutationGroup to have a representation
+containing a set (list) of Permutation, it does, but to improve
+efficiency it also has other information as will be discussed below.
+There is a discussion of 'internal' verses 'external'
+representation of a group on the thread here:
+\url{https://groups.google.com/forum/?hl=en#!topic/fricas-devel/ulUl5NQ0wHk}
+
+The representation of PermutationGroup is as follows:
+\begin{verbatim}
+  Rep  := Record(gens : L PERM S, information : REC2)
+
+Where:
+
+  REC2 ==> Record(order : NNI, sgset : L V NNI, _
+             gpbase : L NNI, orbs : V REC, mp : L S, wd : L L NNI)
+  REC  ==> Record ( orb : L NNI, svc : V I )
+
+REC holds orbit with Schreier vector.
+\end{verbatim}
+\section{History}
+The algorithm derives from Schreier's subgroup lemma.
+\url{https://en.wikipedia.org/wiki/Schreier%E2%80%93Sims_algorithm}
+
+Acording to wikipedia permutation group software developed by Sims
+led to the proof of existence of some finite simple sporadic groups
+such as Higman–Sims, Lyons and O'Nan groups. I'm not sure what language
+that was written in but the SPAD implementation here obviously derived
+from it.
+\url{https://en.wikipedia.org/wiki/Charles_Sims_(mathematician)}
+
+\section{Scaling Up}
+
+The algorithms for this domain are designed to scale up to groups
+with thousands of elements. TODO can we quantify this better?
+To do this we need to represent the group in a way that does not
+need to compute or store all the possible elements of the group,
+yet still be able to calculate:
+\begin{itemize}
+\item The order of the group.
+\item Test permutations to check if they are elements of the group.
+\item Express elements as words in the group.
+\end{itemize}
+To do this we use the theory of stabiliser chains and Schreier's
+subgroup lemma. This requires us to compute 'base and strong
+generators'
+
+The Rep contains an 'information' term which holds this 'base and
+strong generators' and other information. It is computed when first
+needed and stored in Rep to avoid the need to recompute for functions
+that may be called in the future.
+
+I find it easier to discuss this theory using diagrams so I have put
+this enhanced documentation on the web page here:
+\url{http://www.euclideanspace.com/prog/scratchpad/mycode/discrete/finiteGroup/}
+
+\section{Vectors}
+
+PermutationGroup uses vectors as an alternative coding to represent
+permutations (generators and elements of the group). The elements of
+these vectors use indexes to represent points. I guess vector
+terminology makes sense because they transform one set of points into
+another set of points. However I don't think they are vectors in the
+sense of being elements of a vector space, that is, operations of
+vector addition and scalar multiplication don't seem to be appropriate.
+
+The use of the Vector domain for this does seem to be stretching
+the FriCAS type system a bit. For instance elements of subgroup are
+coded as a vector of a vector (Vector Vector NNI) which would not be
+valid if the type system were fully checked but presumably gets away
+with it because vectors are defined over Type.
+
+\section{Schreier Vectors (Orbit With SVC)}
+
+A Schreier vector gives additional information about an orbit. A point
+is either a base point or has information about which generator index
+will get to it.
+
+In the program the orbit is often stored in the form of:
+'orbitWithSvc', this has type :
+
+REC  ==> Record ( orb : L NNI, svc : V I )
+
+This coding has two parts:
+\begin{itemize}
+\item orb : This contains a list of indexes of points of the orbit.
+The first element in this list is the index of the base point of
+this orbit
+\item svc : Schreier vector coded as follows:
+\end{itemize}
+A Schreier vector codes its elements like this:
+
+-2 means point not in orbit,
+-1 means base point
+positive value is index of strong generator moving given point closer
+to base point.
+Again much more detail and examples at:
+\url{http://www.euclideanspace.com/prog/scratchpad/mycode/discrete/finiteGroup/}
+
+)endif
 )abbrev domain PERMGRP PermutationGroup
 ++ Authors: G. Schneider, H. Gollan, J. Grabmeier
 ++ Date Created: 13 February 1987
@@ -20,6 +182,8 @@
 ++  basic routines and algorithms
 ++  are implemented so that the word problem for
 ++  permutation groups can be solved.
+++  Much more detail and examples at:
+++  \url{http://www.euclideanspace.com/prog/scratchpad/mycode/discrete/finiteGroup/}
 --++  Note: we plan to implement lattice operations on the subgroup
 --++  lattice in a later release
 
@@ -35,10 +199,17 @@ PermutationGroup(S : SetCategory) : public == private where
   OUT   ==> OutputForm
   SYM  ==> Symbol
   REC  ==> Record ( orb : L NNI, svc : V I )
+    -- REC holds orbit and Schreier vector
   REC2 ==> Record(order : NNI, sgset : L V NNI, _
              gpbase : L NNI, orbs : V REC, mp : L S, wd : L L NNI)
+    -- REC2 holds extra information about group in representation
+    --      to improve efficiency of some functions.
+    --      See Rep below for more details.
   REC3 ==> Record(elt : V NNI, lst : L NNI)
+    -- REC3 holds an element and a word
   REC4 ==> Record(bool : B, lst : L NNI)
+    -- REC4 used by 'memberInternal' function to return internal
+    -- membership testing
 
   public ==> SetCategory with
 
@@ -61,7 +232,8 @@ PermutationGroup(S : SetCategory) : public == private where
       ++ degree(gp) returns the number of points moved by all permutations
       ++ of the group {\em gp}.
     base             : %         -> L S
-      ++ base(gp) returns a base for the group {\em gp}.
+      ++ base(gp) returns a base for the group{\em gp}, this is the
+      ++ sequence of points stabilised.
     strongGenerators : %         -> L PERM S
       ++ strongGenerators(gp) returns strong generators for
       ++ the group {\em gp}.
@@ -90,7 +262,7 @@ PermutationGroup(S : SetCategory) : public == private where
       ++ orbit(gp, ls) returns the orbit of the ordered
       ++ list {\em ls} under the group {\em gp}.
       ++ Note: return type is L L S temporarily because FSET L S has an error.
-      -- (GILT DAS NOCH?)
+      -- FIXME (GILT DAS NOCH?) Is that true?
     member?          : (PERM S, %)-> B
       ++ member?(pp, gp) answers the question, whether the
       ++ permutation {\em pp} is in the group {\em gp} or not.
@@ -99,6 +271,8 @@ PermutationGroup(S : SetCategory) : public == private where
       ++ permutation p in the strong generators of the group {\em gp},
       ++ represented by the indices of the list, given by
       ++ {\em strongGenerators}.
+      ++ This function uses strong generators in Rep. If they have
+      ++ not been initialised then it will initialise them.
     wordInGenerators : (PERM S, %)-> L NNI
       ++ wordInGenerators(p, gp) returns the word for the permutation p
       ++ in the original generators of the group {\em gp},
@@ -113,7 +287,7 @@ PermutationGroup(S : SetCategory) : public == private where
       ++ is a subgroup of {\em gp2}.
       ++ Note: because of a bug in the parser you have to call this
       ++ function explicitly by {\em gp1 <=$(PERMGRP S) gp2}.
-      -- (GILT DAS NOCH?)
+      -- FIXME (GILT DAS NOCH?) Is that true?
     initializeGroupForWordProblem : %   -> Void
       ++ initializeGroupForWordProblem(gp) initializes the group {\em gp}
       ++ for the word problem.
@@ -126,26 +300,91 @@ PermutationGroup(S : SetCategory) : public == private where
     initializeGroupForWordProblem : (%, I, I) -> Void
       ++ initializeGroupForWordProblem(gp, m, n) initializes the group
       ++ {\em gp} for the word problem.
-      ++ Notes: (1) with a small integer you get shorter words, but the
+      ++ Notes: 1. with a small integer you get shorter words, but the
       ++ routine takes longer than the standard routine for longer words.
-      ++ (2) be careful: invoking this routine will destroy the possibly stored
+      ++ 2. be careful: invoking this routine will destroy the possibly stored
       ++ information about your group (but will recompute it again).
-      ++ (3) users need not call this function normally for the soultion of
-      ++ the word problem.
+      ++ 3. users need not call this function normally for the solution
+      ++ of the word problem.
     relationsInStrongGenerators : % -> L(L(I))
       ++ relationsInStrongGenerators(gp) computes relations between
       ++ strong generators.
+      ++ This function uses strong generators in Rep. If they have
+      ++ not been initialised then it will initialise them.
+      ++ When do we use this in preference to
+      ++ relationsInGenerators?
+      ++ when we don't want to recreate information in % because
+      ++ we rely on it staying the same or creating for word
+      ++ problem would make it too big.
     relationsInGenerators : % -> L(L(I))
       ++ relationsInGenerators(gp) computes relations between
       ++ generators.
+      ++ Similar to relationsInStrongGenerators(gp) above, except that,
+      ++ when generating strong generaters, it initializes for word
+      ++ problem. It then uses words to refine relations.
+      ++ When do we use this in preference to 
+      ++ relationsInStrongGenerators?
+      ++ when we want minimal GroupPresentation and we don't mind
+      ++ recreating information in % which will be bigger.
     pointList : % -> L S
-      ++ pointList(gp) should be local but conditional
+      ++ pointList(gp) is only exported to allow
+      ++ different versions depending on S.
     perm_to_vec : (L S, PERM S, NNI) -> V NNI
-      ++ perm_to_vec(supp, p, degree) should be local but conditional
+      ++ perm_to_vec(supp, p, degree) is only exported to allow
+      ++ different versions depending on S.
+      ++ Function used locally by bsgs as first stage in
+      ++ constructing strong generators.
+      ++ Encodes a permutation as a 'vector', a list of indexes
+      ++ where the first entry gives the index that point 1
+      ++ translates to,  the second entry gives the index that
+      ++ point 2 translates to, and so on.
+      ++ There are 2 versions of this function. If S has
+      ++ OrderedSet then the points are sorted so that index 1
+      ++ is the lowest and so on.
+      ++ Parameter definitions:
+      ++ supp   - (short for 'support') is list of elements of S
+      ++          which are moved by p.
+      ++ p      - permutation being converted.
+      ++ degree - number of points being permuted.
+    -- coerce : (a:%) -> GroupPresentation
+    -- I would like to reinstate this coerce to GroupPresentation
+    -- The previous version used a brute-force method and so
+    -- was removed.
+    -- I think it should now be replaced to use
+    -- relationsInStrongGenerators or relationsInGenerators?
+
   private ==> add
 
-    -- representation of the object:
-
+    -- Representation of the instance:
+    -- The 'gens' component completely defines the group as a list
+    -- of permutations. This is set when the group is constructed.
+    -- The information component allows some functions to be run
+    -- more efficiently this data is created, when needed from gens.
+    -- The parts of the information data are defined as follows:
+    -- order  - Number of elements. Zero means that 'information'
+    --          data has not yet been computed.
+    -- sgset  - Strong Generators
+    -- gpbase - sequence of points stabilised by the group.
+    -- orbs   - Describes orbits of base point. The orb part is
+    --          just list of point on the orbit. The Schreier vector
+    --          (svc) part allows you to compute element of the group
+    --          moving given point to base point of the orbit.
+    --          -2 means point not in orbit,
+    --          -1 means base point,
+    --          positive value is index of strong generator moving
+    --          given point closer to base point.
+    --          This list of orbits tends to be in a certain order,
+    --          (corresponding to the order of gpbase)
+    --          that is, stabiliser of point 1 (if it exists) is first
+    --          then the other stabilisers, then
+    --          the final orbit may not stabilise any points.
+    --          I don't know if this order is required or assumed
+    --          by any functions.
+    -- mp     - List of elements of S moved by some permutation
+    --          (needed for mapping between permutations on S and
+    --          internal representation)
+    -- wd     - Gives representation of strong generators in terms
+    --          of original generators
     Rep  := Record(gens : L PERM S, information : REC2)
 
     -- import of domains and packages
@@ -172,6 +411,9 @@ PermutationGroup(S : SetCategory) : public == private where
 
   --local functions first, implementations:
 
+    -- Local function used in bsgs1, bsgs and wordInGenerators
+    -- when doing word problem.
+    -- Simplify word, for example, remove trivial element.
     shortenWord ( lw : L NNI, gp : % ) : L NNI ==
         -- tries to shorten a word in the generators by removing identities
         gpgens : L PERM S := coerce gp
@@ -213,19 +455,21 @@ PermutationGroup(S : SetCategory) : public == private where
             do_res := not(flag2)
         newlw
 
-    -- internal multiplication of permutations
+    -- internal multiplication of elements (permutations)
     times!(res : V NNI, p : V NNI, q : V NNI) : Void ==
         degree := #p
         for i in 1..degree repeat
             qsetelt!(res, i, qelt(p, qelt(q, i)))
 
+    -- internal multiplication of permutations
+    -- (multiply means compose permutations)
     times ( p : V NNI, q : V NNI ) : V NNI ==
         degree := #p
         res : V NNI := new(degree, 0)
         times!(res, p, q)
         res
 
-    -- internal inverse of a permutation
+    -- internal inverse of an element (permutation)
     inv ( p : V NNI ) : V NNI ==
         degree := #p
         q : V NNI := new(degree, 0)$(V NNI)
@@ -233,42 +477,112 @@ PermutationGroup(S : SetCategory) : public == private where
         q
 
     -- internal test for identity
+    -- Returns true if every point maps to itself.
     testIdentity ( p : V NNI ) : B ==
         degree := #p
         for i in 1..degree repeat qelt(p, i) ~= i => return false
         true
 
+    -- Local function used by strip1 and bsgs.
+    -- Calculate coset representative from orbit.
+    -- The representative is a group element (permutation in the form
+    -- of a vector), not necessarily a generator.
+    -- The element we want is an element that returns given point
+    -- to the base point. That is, given 'ppt' return 'g' such that:
+    -- eval(g,ppt) = base point
+    -- Parameters:
+    --  ppt : NNI is input point.
+    --  do_words - true if set for word problem
+    --  o        - orbit and Schreier vector for required base.
+    --                REC:Record (orb:L NNI,svc:V I)
+    --  grpv     - group gens defined as vector of a vector.
+    --  wordv    - used for word problem.
+    -- Result is permutation (group element) and word:
+    --  REC3:Record(elt : V NNI, lst : L NNI)
+    -- It is hard to describe these functions without diagrams so
+    -- I have put a better explanation here:
+    -- \url{http://www.euclideanspace.com/prog/scratchpad/mycode/discrete/finiteGroup/index.htm#cosetRep1}
     cosetRep1(ppt : NNI, do_words : Boolean, o : REC, grpv : V V NNI,
               wordv : V L NNI) : REC3 ==
         #grpv = 0 => error "cosetRep needs nonempty group"
         degree := #(grpv(1))
+        -- init xelt to identity generator
         xelt : V NNI := [ n for n in 1..degree ]
         word         := []$(L NNI)
         oorb         := o.orb
+        -- oorb is orbit which has type L NNI
+        -- FIXME oorb does not appear to be used?
         osvc         := o.svc
+        -- osvc is Schreier vector which has type V I
         p := qelt(osvc, ppt)
+        -- p is current point in svc
+        -- "-2" means not in the orbit, "-1" means base point,
+        -- in these cases return identity vector.
         p < 0 => return [xelt, word]
         tmpv : V NNI := new(degree, 0)
         repeat
             x    := qelt(grpv, p)
+            -- select generator
             times!(tmpv, x, xelt)
             (tmpv, xelt) := (xelt, tmpv)
             if do_words then word := append(wordv.p, word)
+            -- apply permutation to get next point
             ppt  := qelt(x, ppt)
+            -- lookup point in Schreier vector
             p := qelt(osvc, ppt)
+            -- if starting point then return
             p < 0 => return [xelt, word]
 
+    -- Local function used by bsgs1
+    -- If the given element is in group calculate its normal form.
+    -- Multiply element by coset representation.
+    -- The coset is determined by point: Take point as the first
+    -- point listed in orb and look that up in element.
+    -- Parameters:
+    --  element : V NNI
+    --  orbit - orbit and Schreier vector
+    --            REC:Record ( orb : L NNI, svc : V I )
+    --  group : L V NNI the group generators
+    --  words
+    -- Result:
+    --  REC3:Record(elt : V NNI, lst : L NNI)
+    -- It is hard to describe these functions without diagrams so
+    -- I have put a better explanation here:
+    -- \url{http://www.euclideanspace.com/prog/scratchpad/mycode/discrete/finiteGroup/index.htm#strip1}
     strip1(element : V NNI, orbit : REC, group : L V NNI, words : L L NNI
           ) : REC3 ==
         grpv := vector(group)$Vector(V NNI)
+        -- grpv expresses the group as a vector of vectors.
         wordv : V L NNI := empty()
         do_words := not(empty?(words))
         if do_words then
             wordv := vector(words)
+        -- qelt(orbit.orb, 1) gives base element
+        -- then we apply 'element' generator to this.
         point := qelt(element, qelt(orbit.orb, 1))
         cr := cosetRep1(point, do_words, orbit, grpv, wordv)
         [times(cr.elt, element), reverse(cr.lst)]$REC3
 
+    -- Local function used by bsgs, memberInternal,
+    -- relations_for_orbit and relationsInGenerators.
+    --
+    -- Parameters:
+    --  z : V NNI,
+    --  i : I,
+    --  do_words - true if set for word problem
+    --  orbs - orbits and svcs as V REC,
+    --                      (REC=Record ( orb : L NNI, svc : V I ))
+    --  grpv : V V NNI,
+    --  wordv
+    -- Result:
+    --  REC3:Record(elt : V NNI, lst : L NNI)
+    --
+    -- The Schreier vector (svc) part allows you to compute element
+    -- of the group moving given point to base point of the orbit.
+    -- -2 means point not in orbit,
+    -- -1 means base point,
+    -- positive value is index of strong generator moving given
+    -- point closer to base point.
     strip(z : V NNI, i : I, do_words : Boolean,
             orbs : V REC, grpv : V V NNI, wordv : V L NNI) : REC3 ==
         degree := #z
@@ -291,6 +605,8 @@ PermutationGroup(S : SetCategory) : public == private where
                     if do_words then word := append(wordv.entry, word)
         [z, word]
 
+    -- Local function used by orbit functions.
+    -- Compute orbit list from given start list.
     orbitInternal(gp : %, startList : L S) : L L S ==
         orbitList : L L S := [ startList ]
         pos  : I := 1
@@ -307,6 +623,7 @@ PermutationGroup(S : SetCategory) : public == private where
             pos := pos - 1
         reverse orbitList
 
+    -- Local function used by bsgs1 to generate a "random" element.
     ranelt(group : L V NNI, word : L L NNI, maxLoops : I) : REC3 ==
         -- generate a "random" element
         numberOfGenerators    := # group
@@ -327,6 +644,7 @@ PermutationGroup(S : SetCategory) : public == private where
         [randomElement, words]
 
     if S has OrderedSet then
+        -- return list of points and also put into information.mp
         pointList(group : %) : L S ==
             not(empty?(group.information.mp)) => group.information.mp
             support : L S := []
@@ -343,6 +661,7 @@ PermutationGroup(S : SetCategory) : public == private where
                 res := cons(p, res)
             group.information.mp := reverse!(res)
     else
+        -- return list of points and also put into information.mp
         pointList(group : %) : L S ==
             not(empty?(group.information.mp)) => group.information.mp
             support : FSET S := empty()
@@ -352,6 +671,12 @@ PermutationGroup(S : SetCategory) : public == private where
 
     if S has OrderedSet then
         REC5 ==> Record(preimage : NNI, image : S)
+        -- Local function used by perm_to_vec to sort indexes so
+        -- that index 1 is the lowest poiny and so on.
+        -- Parameter definitions:
+        -- supp - (short for 'support') is list of elements of S
+        --        which are moved by ls.
+        -- ls   - elements to be converted
         ls_to_lnni(ls : L S, supp : L S) : L NNI ==
             empty?(ls) => []
             ls2 := [[i, p]$REC5 for p in ls for i in 1..]
@@ -375,6 +700,20 @@ PermutationGroup(S : SetCategory) : public == private where
                         rp2)
             [second(pp) for pp in rp2]
 
+        -- Function used locally by bsgs as first stage in
+        -- constructing strong generators.
+        -- Encodes a permutation as a 'vector', a list of indexes
+        -- where the first entry gives the index that point 1
+        -- translates to,  the second entry gives the index that
+        -- point 2 translates to, and so on.
+        -- There are 2 versions of this function. If S has
+        -- OrderedSet then the points are sorted so that index 1
+        -- is the lowest and so on.
+        -- Parameter definitions:
+        -- supp   - (short for 'support') is list of elements of S
+        --          which are moved by p.
+        -- p      - permutation being converted.
+        -- degree - number of points being permuted.
         perm_to_vec(supp : L S, p : PERM S, degree : NNI) : V NNI ==
             pr := listRepresentation p
             q := new(degree, 0)$(V NNI)
@@ -386,6 +725,20 @@ PermutationGroup(S : SetCategory) : public == private where
                 q(pp) := ip
             q
     else
+        -- Function used locally by bsgs as first stage in
+        -- constructing strong generators.
+        -- Encodes a permutation as a 'vector', a list of indexes
+        -- where the first entry gives the index that point 1
+        -- translates to,  the second entry gives the index that
+        -- point 2 translates to, and so on.
+        -- There are 2 versions of this function. If S has
+        -- OrderedSet then the points are sorted so that index 1
+        -- is the lowest and so on.
+        -- Parameter definitions:
+        -- supp   - (short for 'support') is list of elements of S
+        --          which are moved by p.
+        -- p      - permutation being converted.
+        -- degree - number of points being permuted.
         perm_to_vec(supp : L S, p : PERM S, degree : NNI) : V NNI ==
             q := new(degree, 0)$(V NNI)
             for i in 1..degree repeat
@@ -394,9 +747,16 @@ PermutationGroup(S : SetCategory) : public == private where
                 q.i   := pos2 pretend NNI
             q
 
+    -- Local function used by orbitWithSvc which is used by bsgs1
+    -- Given a set of generators and a point this calculates the
+    -- orbit and schreierVector.
+    -- That is the points that can reach given point and the index
+    -- of the generators used.
+    -- For Schreier vector (denoted svc),
+    --    "-2" means not in the orbit,
+    --    "-1" means starting point,
+    --    PI correspond to generators
     orbitWithSvc1(group : L V NNI, grpinv : L V NNI, point : NNI) : REC ==
-        -- compute orbit with Schreier vector, "-2" means not in the orbit,
-        -- "-1" means starting point, the PI correspond to generators
         degree := #(first(group))
         orbit          : L NNI := [ point ]
         orbitv         : V NNI := new(degree, 0)
@@ -418,6 +778,13 @@ PermutationGroup(S : SetCategory) : public == private where
             position := position - 1
         [reverse!(orbit), schreierVector ]
 
+    -- Local function used by bsgs1
+    -- Given a group and a point in the group this calculates the
+    -- orbit and schreierVector.
+    -- Calculates inverse group, then orbitWithSvc1 does the work.
+    -- It is hard to describe these functions without diagrams so
+    -- I have put a better explanation here:
+    -- \url{http://www.euclideanspace.com/prog/scratchpad/mycode/discrete/finiteGroup/index.htm#orbitWithSvc}
     orbitWithSvc(group : L V NNI, point : NNI) : REC ==
         grpinv := []$(L V NNI)
         for el in group repeat
@@ -425,6 +792,38 @@ PermutationGroup(S : SetCategory) : public == private where
         grpinv := reverse grpinv
         orbitWithSvc1(group, grpinv, point)
 
+    -- Local function used by bsgs
+    -- Tries to get a good approximation for the base points which
+    -- are put in gp_info.gpbase and stabiliser chain which is
+    -- returned in 'out' parameter reference.
+    -- These values can be used by bsgs to compute the strong
+    -- generators but this output may contain duplicates and so
+    -- bsgs must remove these.
+    -- This function is recursive, it calls itself for every subgroup.
+    -- Note: this function uses Monte Carlo methods (random sampling)
+    -- and so may not give the same result for given parameters.
+    -- returns sizeOfGroup and sets reference values 'out' (stabiliser
+    -- chain) and 'outword' and also sets gp_info.gpbase (sequence
+    -- of points stabilised by the group).
+    -- parameters are:
+    --   group    holds permutations as vectors as they are easier to
+    --            work with.
+    --   number1  initial index for calculating orbits.
+    --            bsgs1 is first called with number1 set to '1' but
+    --            when called recursively it will be incremented so
+    --            that earlier stabilisers will not be checked again.
+    --   words
+    --   maxLoops if zero then calculate from the (approximate)
+    --            base length
+    --   gp       is this instance.
+    --   diff     if word problem then subtract this from maxLoops.
+    --   out      Reference to stabiliser chain which can be appended
+    --            by this function. The first value stabilises most
+    --            points, next value less points and so on.
+    --   outword  Reference to words (if used) for stabiliser chain.
+    -- It is hard to describe these functions without diagrams so
+    -- I have put a better explanation here:
+    -- \url{http://www.euclideanspace.com/prog/scratchpad/mycode/discrete/finiteGroup/index.htm#bsgs1}
     bsgs1(group : L V NNI, number1 : NNI, words : L L NNI, maxLoops : I,
           gp : %, diff : I, out : Reference(L L V NNI),
           outword : Reference(L L L NNI)) : NNI ==
@@ -432,19 +831,25 @@ PermutationGroup(S : SetCategory) : public == private where
         degree := #(first(group))
         gp_info := gp.information
         wordProblem : Boolean := not(empty?(words))
-        -- i := find moved point
+        -- find moved point i, that is first point with orbit > 1
         for i in number1..degree repeat
+            -- Given a group and a point in the group this calculates
+            -- the orbit and schreierVector.
             ort := orbitWithSvc(group, i)
             k   := ort.orb
             k1  := # k
+            -- if size of orbit not 1 then break
             if k1 ~= 1 then break
+        -- ort is set to first orbit with more than 1 element
+        -- 'i' will be the fist element in this orbit
         gpsgs := []$(L V NNI)
         words2 := []$(L L NNI)
         gplength : NNI := #group
-        -- j := nontrivial element
+        -- set jj to be nontrivial element
         for jj in 1..gplength repeat if (group.jj).i ~= i then break
         for k in 1..gplength repeat
             el2 := group.k
+            -- if stab(i) then multiply by first non-trivial generator
             if el2.i ~= i then
                 gpsgs := cons(el2, gpsgs)
                 if wordProblem then words2 := cons(words.k, words2)
@@ -452,11 +857,16 @@ PermutationGroup(S : SetCategory) : public == private where
                 gpsgs := cons(times(group.jj, el2), gpsgs)
                 if wordProblem then
                       words2 := cons(append(words.jj, words.k), words2)
+        -- gpsgs now contains a list of the permutations in vector
+        -- form.
         group2 := []$(L V NNI)
+        -- group2 will hold the representative elements (one per coset)
         words3 := []$(L L NNI)
         j : I  := 15
         while j > 0 repeat
             -- find generators for the stabilizer
+            -- ranelt generates a "random" element as an element
+            --   and word: Record(elt : V NNI, lst : L NNI)
             ran := ranelt(group, words, maxLoops)
             str := strip1(ran.elt, ort, group, words)
             el2 := str.elt
@@ -469,13 +879,17 @@ PermutationGroup(S : SetCategory) : public == private where
                         words3       := cons(help, words3)
                     j := j - 2
             j := j - 1
+        -- group2 now holds the representative elements (one per coset)
         -- this is for word length control
         if wordProblem then maxLoops    := maxLoops - diff
+        -- If no subgroups then return size=k1
         if empty?(group2) or (maxLoops < 0) then
             gp_info.gpbase := [i]
             setref(out, [gpsgs])
             setref(outword, [words2])
             return k1
+        -- If we get here there are subgroups so call recursively
+        -- and multiply together to get total size.
         k2 := bsgs1(group2, i + 1, words3, maxLoops, gp, diff,
                     out, outword)
         sizeOfGroup : NNI := k1 * k2
@@ -484,9 +898,10 @@ PermutationGroup(S : SetCategory) : public == private where
         gp_info.gpbase := cons(i, gp_info.gpbase)
         sizeOfGroup
 
+    -- Local function used by bsgs to try to reduce the number
+    -- of strong generators.
     reduceGenerators(kkk : I, do_words : Boolean, gp_info : REC2,
                      outl : L L V NNI, outword : L L L NNI) : L V NNI ==
-        -- try to reduce number of strong generators
         base_lst := gp_info.gpbase
         orbv := gp_info.orbs
         sgs : L V NNI := []
@@ -524,16 +939,39 @@ PermutationGroup(S : SetCategory) : public == private where
                 i := i + 1
         res
 
-
+    -- This is a local function to initialise base and strong
+    -- generators and other values in group:%.
+    -- Functions such as initializeGroupForWordProblem or
+    -- knownGroup? are called to make sure 'information' has been
+    -- initialised in group:%. If initialisation is required then bsgs
+    -- is called to do the work.
+    -- Note: this function calls bsgs1 which uses Monte Carlo methods
+    -- (random sampling) and so may not give the same result for given
+    -- parameters.
+    -- returns sizeOfGroup but real purpose is side effects of
+    -- setting 'information' in group:%.
+    -- parameters are:
+    --   group       is this instance.
+    --   wordProblem is true if we want to initialise for wordProblem.
+    --   maxLoops    if zero then calculate from the (approximate)
+    --               base length
+    --   diff        if word problem then subtract this from maxLoops.
+    -- It is hard to describe these functions without diagrams so
+    -- I have put a better explanation here:
+    -- \url{http://www.euclideanspace.com/prog/scratchpad/mycode/discrete/finiteGroup/index.htm#bsgs}
     bsgs(group : %, wordProblem : Boolean, maxLoops : I, diff : I) : NNI ==
         -- the MOST IMPORTANT part of the package
         basePoint    : NNI           := 0
         newBasePoint : B := false
         baseOfGroup  : L NNI         := []
         out               : L L V NNI     := []
+        -- out will hold stabiliser chain
         outword           : L L L NNI     := []
         outr              : Reference(L L V NNI) := ref([])
+        -- outr is reference to stabiliser chain (out above)
         outwordr          : Reference(L L L NNI) := ref([])
+        -- put list of points into supp and also put into
+        -- information.mp
         supp   := pointList group
         degree := # supp
         gp_info := [1, [], [], [], [], []]$REC2
@@ -541,6 +979,8 @@ PermutationGroup(S : SetCategory) : public == private where
             group.information := gp_info
             return 1
         newGroup := []$(L V NNI)
+        -- 'newGroup' holds permutations as vectors as they are
+        -- easier to work with.
         tmpv : V NNI := new(degree, 0)
         gp       : L PERM S := group.gens
         words := []$(L L NNI)
@@ -548,13 +988,24 @@ PermutationGroup(S : SetCategory) : public == private where
             q := perm_to_vec(supp, ggp, degree)
             newGroup := cons(q, newGroup )
             if wordProblem then words := cons(list ggg, words)
+        -- If bsgs1 has not yet been called first call it with base
+        -- length of 20 then call it again with more accurate base
+        -- length.
         if maxLoops < 1 then
-            -- try to get the (approximate) base length
+            -- try to get the (approximate) base length by pre-calling
+            -- bsgs1 with maxloops=20
             if zero? (# ((group.information).gpbase)) then
                 k := bsgs1(newGroup, 1, []$(L L NNI), 20, group, 0,
                                  outr, outwordr)
             maxLoops := #((group.information).gpbase) - 1
         k := bsgs1(newGroup, 1, words, maxLoops, group, diff, outr, outwordr)
+        -- bsgs1 tries to get a good approximation for the base
+        -- points which are put in (group.information).gpbase and
+        -- stabiliser chain which is returned in 'out' parameter
+        -- reference.
+        -- These values can be used here to compute the strong
+        -- generators but this output may contain duplicates and so
+        -- we must remove these.
         out := deref(outr)
         outword := deref(outwordr)
         kkk : I := 1
@@ -663,6 +1114,14 @@ PermutationGroup(S : SetCategory) : public == private where
             if degree gen > 0 then insert!(gen, group2)
         group2
 
+    -- Local function to make sure information data is setup.
+    -- If information.order is zero this means that 'information'
+    -- data has not yet been calculated in this instance yet.
+    -- If a function needs to use the 'information' data it first
+    -- calls the knownGroup?(gp : %) function, if
+    -- information.order = 0 then it calls 'bsgs' to set
+    -- 'gp.information' from gp.gens. Once the information is set
+    -- further calls to knownGroup? don't need to do anything.
     knownGroup?(gp : %) : Void ==
         -- do we know the group already?
         if gp.information.order = 0 then
@@ -721,14 +1180,21 @@ PermutationGroup(S : SetCategory) : public == private where
         orbit_words1(p, p, grp, [], res)
         res
 
+    -- Local function used by relations_in_strong_generators.
+    -- It is called for every base value in turn and returns
+    -- relations (loops) for that base value.
+    -- parameters are:
+    -- p : NNI = base point.
+    -- m : NNI = stabilised point
+    -- orbd : V REC = all orbits
+    -- grpv : V V NNI = generators in vector form.
+    -- returns:
+    -- relations (loops) for this base value.
     relations_for_orbit(p : NNI, m : NNI, orbd : V REC,
                         grpv : V V NNI) : L L I ==
-        -- print("relations_for_orbit"::OutputForm)
-        -- print(p::OutputForm)
         res : L L I := []
         grpl := first(members(grpv), m)
         ww := orbit_words(p, grpl)
-        -- print(ww::OutputForm)
         n0 := #(orbd(1).svc)
         wv := new(n0, empty()$Vector(NNI))$(V V NNI)
         wvi := new(n0, empty()$Vector(NNI))$(V V NNI)
@@ -747,12 +1213,8 @@ PermutationGroup(S : SetCategory) : public == private where
         for i in 1..n0 repeat
             wi_l := qelt(ww, i)
             empty?(wi_l) => "skip"
-            -- print("wi_l = "::OutputForm)
-            -- print(wi_l::OutputForm)
             wi := qelt(wv, i)
             for j in 1..m repeat
-                -- print("doing"::OutputForm)
-                -- print(j::OutputForm)
                 nw := times(grpv(j), wi)
                 p1 := qelt(nw, p)
                 iw : L NNI := []
@@ -763,7 +1225,6 @@ PermutationGroup(S : SetCategory) : public == private where
                 nw := inv(nw)
                 rhr := strip(nw, #orbd, true, orbd, grpv, wordv)
                 rh := concat(iw, rhr.lst)
-                -- print(rh::OutputForm)
                 rl : L I := []
                 for k in rh repeat
                     rl := cons(-k, rl)
@@ -773,46 +1234,83 @@ PermutationGroup(S : SetCategory) : public == private where
                 ll := reverse!(ll)
                 rl := concat(ll, rl)
                 rl := cons(j, rl)
-                -- print(rl::OutputForm)
                 res := cons(rl, res)
         res
 
+    -- Local function used by relationsInStrongGenerators and
+    -- relationsInGenerators to compute relations which can be
+    -- used to construct a presentation.
+    -- parameters are:
+    -- orbd - orbits
+    -- grpv - group strong generators as vectors
+    --        I think it is assumed that the generators are in a
+    --        certain order, that is, stabiliser of point 1 (if it
+    --        exists) is first then the other stabilisers, then
+    --        the final generator may not stabilise any points.
+    -- These lists tend to be in a certain order, that is, stabiliser
+    -- of point 1 (if it exists) is first then the other stabilisers,
+    -- then the final orbit may not stabilise any points. Is this
+    -- order required or assumed.
+    -- returns: relations in form used by presentation
     relations_in_strong_generators(orbd : V REC, grpv : V V NNI
                                   ) : L L I ==
         k := #orbd
         m := #grpv
         res : L L I := []
-        bl : L NNI := []
+        bl : L NNI := [] -- will hold list of base points
         for i in 1..k repeat
             orbi := qelt(orbd, i)
             bl := cons(first(orbi.orb), bl)
+            -- first entry in orb is base point
+        -- gri_l is list of indexes of generators
         gri_l : L NNI := [m]
         blp := bl
-        -- print(blp::OutputForm)
+        -- blp = list of base points, derived from orbits.
         p1 := first(blp)
         blp := rest(blp)
+        -- j ranges over vector index in reverse order
         for j in m..1 by -1 repeat
-            gv := qelt(grpv, j)
-            p2 := qelt(gv, p1)
-            -- print(p2::OutputForm)
+            gv := qelt(grpv, j) -- gv=current vector
+            p2 := qelt(gv, p1) -- p2=where base maps to
+            -- if base maps to itself
             if p1 = p2 then
                 gri_l := cons(j, gri_l)
                 empty?(blp) => break
                 p1 := first(blp)
                 blp := rest(blp)
-        -- print(gri_l :: OutputForm)
+        -- call relations_for_orbit for each base value in turn
         for p0 in reverse(bl) for m1 in gri_l repeat
             res := concat(relations_for_orbit(p0, m1, orbd, grpv), res)
         res
 
   --now the exported functions
 
+    -- relationsInStrongGenerators(gp) computes relations between
+    -- strong generators.
+    -- This function uses strong generators in Rep. If they have
+    -- not been initialised then it will initialise them.
+    -- When do we use this in preference to 
+    -- relationsInGenerators?
+    -- when we dont want to recreate information in % because
+    -- we rely on it staying the same or creating for word
+    -- problem would maye it too big.
     relationsInStrongGenerators(gp : %) : L(L(I)) ==
         knownGroup?(gp)
         gi := gp.information
         grpv := vector(gi.sgset)$V(V(NNI))
         relations_in_strong_generators(gi.orbs, grpv)
 
+    -- relationsInGenerators(gp) computes relations between
+    -- generators.
+    -- Similar to relationsInStrongGenerators(gp) above, except that,
+    -- when generating strong generaters, it initializes for word
+    -- problem. It then uses words to refine relations.
+    -- What are expected advantages if this over
+    -- relationsInStrongGenerators ?
+    -- When do we use this in preference to 
+    -- relationsInStrongGenerators?
+    -- when we want minimal GroupPresentation and we dont mind
+    -- recreating information in %
     relationsInGenerators(gp : %) : L(L(I)) ==
         gi := gp.information
         if #(gi.wd) = 0 then
@@ -1007,6 +1505,13 @@ PermutationGroup(S : SetCategory) : public == private where
 
     initializeGroupForWordProblem(gp) ==
         initializeGroupForWordProblem(gp, 0, 1)
+
+    -- I would like to reinstate this coerce to GroupPresentation
+    -- The previous version used a brute-force method and so
+    -- was removed.
+    -- I think it should now be replaced to use
+    -- relationsInStrongGenerators or relationsInGenerators?
+    --coerce(a:%) : GroupPresentation ==
 
 )abbrev package PGE PermutationGroupExamples
 ++ Authors: M. Weller, G. Schneider, J. Grabmeier
