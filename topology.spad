@@ -1,0 +1,590 @@
+-- to compile
+-- )co fricas/topology.spad
+--
+-- To test out:
+-- test OpenSet
+-- a := openSet [1,2,3]
+-- b := openSet [1,2]
+-- c := openSet [2,4]
+-- product(shift(a,4),b)
+-- intersection(a,c)
+-- union(a,c)
+--
+-- test TopologyFinite
+-- x := topologyFiniteLeftOrder(3)
+-- y := topologyFiniteDiscrete(3)
+-- product(x,y)
+--
+-- test TopoSpaceFinite
+-- topoSpaceFiniteTrivial(["a","b"])
+-- topoSpaceFiniteDiscrete(["a","b","c"])
+-- y := topologyFiniteLeftOrder(3)
+-- y := topologyFiniteDiscrete(3)
+-- full2basis y
+-- basis2full y
+-- x := topoSpaceFiniteLeftOrder(["a","b","c"])
+-- y := topoSpaceFiniteLeftOrder(["d","e"])
+-- product(x,y)
+-- nerveConstruction(x)
+
+)abbrev domain OPENSET OpenSet
+++ Author: Martin Baker
+++ Description:
+++   An open set.
+++   Modeled using natural numbers (NNI), this is so that
+++   they can be used to index other sets, it does not
+++   imply a total order of the sets containing them.
+++   for more documentation see:
+++ References:
+++   http://www.euclideanspace.com/maths/topology/algtop/
+
+OpenSet() : Exports == Impl where
+  NNI==> NonNegativeInteger
+  x<<y ==> hconcat(x::OutputForm, y::OutputForm)
+
+  Exports ==> Join(SetCategory,PartialOrder) with
+
+    openSet : (List NNI) -> %
+      ++ constructor from list
+
+    getOpenSetAsList : (t:%) -> List(NNI)
+
+    intersection : (a:%, b:%) -> %
+      ++ intersection with degenerates removed
+
+    union : (a:%, b:%) -> %
+      ++ union with degenerates removed
+
+    product : (a : %, b : %) -> %
+
+    shift : (a : %, distance : NNI) -> %
+
+    getDimension : (a : %) -> NNI
+
+    addIfNew : (a : List %, b : %) -> List %
+
+    isEmpty? : (a:%) -> Boolean
+
+  Impl ==> add
+
+   -- A set and a topology on it.
+   Rep := List NNI
+
+   -- constructor
+   openSet(a : List NNI) : % ==
+     [sort a]
+
+   getOpenSetAsList(t:%) : List(NNI) ==
+     t::Rep
+
+   -- display as set
+   coerce(x : %) : OutputForm ==
+     x1:List NNI := x::Rep
+     brace [a::OutputForm for a in x1]
+
+   -- true if a contained in b
+   -- generates logic of inclusions
+   _<_=(a:%,b:%) : Boolean ==
+     for x in a::Rep repeat
+       if not member?(x, b::Rep) then return false
+     true
+
+   -- true if they contain the same elements
+   -- ignore degenerate (multiple copies) elements
+   _=(a:%,b:%) : Boolean ==
+     for x in a::Rep repeat
+       if not member?(x, b::Rep) then return false
+     for x in b::Rep repeat
+       if not member?(x, a::Rep) then return false
+     true
+
+   -- intersection with degenerates removed
+   intersection(a:%, b:%) : % ==
+     res:List NNI := empty
+     for x in a::Rep repeat
+       for y in b::Rep repeat
+         if x=y and not member?(x, res) then res:=concat(res,x)
+     res
+
+   -- union with degenerates removed
+   union(a:%, b:%) : % ==
+     res:List NNI := empty
+     for x in a::Rep repeat
+       if not member?(x, res) then res:=concat(res,x)
+     for x in b::Rep repeat
+       if not member?(x, res) then res:=concat(res,x)
+     sort res
+
+   product(a : %, b : %) : % ==
+     -- should check that a and b are disjoint
+     concat(a,b)
+
+   shift(a : %, distance : NNI) : % ==
+     [x+distance for x in a]
+
+   getDimension(a : %) : NNI ==
+     top1:List NNI := a::Rep
+     #top1
+
+   addIfNew(a : List %, b : %) : List % ==
+       if empty?(b) then return a
+       sorted : List(NNI) := sort(b::Rep)
+       if member?(sorted, a) then return a
+       concat(a, sorted)
+
+   isEmpty?(a:%) : Boolean ==
+     isEmpty?(a::Rep)
+
+)abbrev domain TOPFIN TopologyFinite
+++ Author: Martin Baker
+++ Description:
+++   A set of open sets.
+++   Can also be thought of as a subset of the power set.
+++   It may be sufficient to use only a basis where the full
+++   topology can be reconstructed from it.
+++   for more documentation see:
+++ References:
+++   http://www.euclideanspace.com/maths/topology/algtop/
+
+TopologyFinite() : Exports == Impl where
+  NNI==> NonNegativeInteger
+  x<<y ==> hconcat(x::OutputForm, y::OutputForm)
+
+  Exports ==> SetCategory() with
+
+    topologyFinite : (List List NNI) -> %
+      ++ constructor
+
+    topologyFiniteTrivial : () -> %
+      ++ Constructor for trivial topology
+      ++ Only empty(doesn't need to be explicitly included) and full open sets
+
+    topologyFiniteDiscrete : (dim:NNI) -> %
+      ++ Constructor for discrete topology
+      ++ includes all open sets
+      ++ Don't need to explicitly include empty
+
+    topologyFiniteLeftOrder : (dim:NNI) -> %
+      ++ Constructor for order topology
+      ++ The order topology may be considered on partially ordered sets as
+      ++ well as linearly ordered sets
+      ++ The open sets are {x | x<b} where b is 1..max
+      ++ On a linearly ordered set it coincides with the interval topology
+
+    getTopology : (a:%) -> List List NNI
+
+    full2basis : (a:%) -> %
+      ++ Remove non-basis open sets
+      ++ That is, for each element, only the smallest open set that includes it.
+
+    basis2full : (a:%) -> %
+      ++ Add all unions of open sets not already included
+
+    coerce : (x : %) -> OutputForm
+      ++ display as symbols
+
+    intersection : (a:%, b:%) -> %
+
+    union : (a:%, b:%) -> %
+      ++ union with degenerates removed
+
+    getDimension : (a : %) -> NNI
+
+    product : (a : %, b : %) -> %
+
+    nerveConstruction : (a : %) -> FiniteSimplicialComplex(Integer)
+      ++ A nerve construction creates a simplicial complex with the
+      ++ topological properties of a given set family.
+      ++ The nerve construction is based on a cover of the set family
+      ++ The resulting complex is a discrete representation of that cover.
+
+
+  Impl ==> add
+
+   -- A set and a topology on it.
+   Rep := Record(basis:Boolean,topology:List OpenSet)
+
+   getTopologyAsList(t:List OpenSet) : List(List(NNI)) ==
+     [getOpenSetAsList(a) for a in t]
+
+   setTopologyFromList(t:List(List(NNI))) : List OpenSet ==
+     [openSet(a) for a in t]
+
+   -- constructor
+   topologyFinite(a : List List NNI) : % ==
+     [false,setTopologyFromList(a)]
+
+   topologyFiniteTrivial() : % ==
+     [false,empty]
+
+   -- local function to add if new
+   addIfNew(lst : List(List(NNI)), unsorted : List(NNI)) : List(List(NNI)) ==
+       if empty?(unsorted) then return lst
+       sorted : List(NNI) := sort(unsorted)
+       if member?(sorted, lst) then return lst
+       concat(lst, sorted)
+
+   -- generate discrete topology
+   genDiscreteTopology(lst : List(List(NNI)),level : NNI,
+       thisOpenSet : List(NNI), dim : NNI) : List(List(NNI)) ==
+     -- print(message "genDiscreteTopology(" << lst  << message ","
+     --  << level  << message "," << thisOpenSet  << message "," << dim << message ")")
+     top1:List List NNI := lst
+     for i in 1..dim repeat
+       openset1 : List NNI := [i]
+       if not member?(i,thisOpenSet) then
+         -- print(message "genDiscreteTopology not member(" << thisOpenSet  << message ","
+         --   << i  << message ")")
+         openset2 : List(NNI) := concat(thisOpenSet,openset1)
+         if (level+1)<dim then
+           top1 := genDiscreteTopology(top1,level+1,openset2,dim)
+         top1 := addIfNew(top1,openset2)
+     top1
+
+   topologyFiniteDiscrete(dim:NNI) : % ==
+     top1:List List NNI := empty
+     top1 := genDiscreteTopology(top1,1,empty,dim)
+     [false,setTopologyFromList(top1)]
+
+   -- generate order topology
+   genOrderTopology(lst : List(List(NNI)),level : NNI,
+       thisOpenSet : List(NNI), dim : NNI) : List(List(NNI)) ==
+     -- print(message "genOrderTopology(" << lst  << message ","
+     --  << level  << message "," << thisOpenSet  << message "," << dim << message ")")
+     top1:List List NNI := lst
+     openset1:List NNI := []
+     for i in 1..dim repeat
+       -- print(message "genOrderTopology loop(" << top1  << message "," << i  << message ")")
+       openset1 := concat(openset1,[i])
+       top1 := concat(top1,openset1)
+     top1
+
+   -- generate order topology
+   topologyFiniteLeftOrder(dim:NNI) : % ==
+     top1:List List NNI := empty
+     top1 := genOrderTopology(top1,1,empty,dim)
+     [false,setTopologyFromList(top1)]
+
+   getTopology(a:%) : List List NNI ==
+     getTopologyAsList(a.topology)
+
+   -- To find a basis: for every element of the set find the smallest
+   -- open set that contains it.
+   -- Remove non-basis open sets
+   -- That is, for each element, only the smallest open set that includes it.
+   full2basis(a:%) : % ==
+     -- assume number of elements is maximum index
+     numEle:NNI := 0
+     top1:List List NNI := getTopologyAsList(a.topology)
+     for x in top1 repeat
+       for y in x repeat
+         if y>numEle then numEle:=y
+     basisSets:List List NNI := empty
+     for currEle in 1..numEle repeat
+       basisCandidate:List NNI := empty
+       minSize:NNI := 0
+       for currOpenSet in top1 repeat
+         currSize:NNI := #currOpenSet
+         if member?(currEle,currOpenSet) and not empty?(currOpenSet) and
+          (minSize=0 or currSize < minSize) then
+            --print(message "adding" << currOpenSet  << message " minSize="
+            --  << minSize << message " currEle=" << currEle)
+            basisCandidate := currOpenSet
+            minSize := #currOpenSet
+       basisSets := addIfNew(basisSets,basisCandidate)
+     [true,setTopologyFromList(basisSets)]
+
+   unionLocal(a:List NNI, b:List NNI) : List NNI ==
+     res:List NNI := a
+     for x in b repeat
+       if not member?(x, res) then res:=concat(res, x)
+     res
+
+   -- Add all unions of open sets not already included
+   basis2full(a:%) : % ==
+     top1:List List NNI := getTopologyAsList(a.topology)
+     top2:List List NNI := copy(top1) -- so we dont alter top1 inside loop
+     for x in top1 repeat
+       for y in top1 repeat
+         z : List NNI := sort (unionLocal(x,y))
+         top2 := addIfNew(top2,z)
+         -- print(message "x=" << x  << message " y="
+         --  << y << message " union=" << z)
+     [false,setTopologyFromList(top2)]
+
+   -- no access to symbols here --
+   --symboliseList(topol1 : List NNI) : OutputForm ==
+   --  res:List OutputForm := empty
+   --  for a in topol1 repeat
+   --    val:OutputForm := (a::OutputForm)
+   --    res := concat(res,val)
+   --  bracket res
+
+   -- display
+   coerce(x : %) : OutputForm ==
+     x1:List OpenSet := x.topology
+     msg:OutputForm := if x.basis then message "basis=" else message "topology="
+     msg << bracket[(a::OutputForm) for a in x1]
+
+   "="(a:%,b:%) : Boolean ==
+     a=b
+
+   -- intersection
+   intersection(a:%, b:%) : % ==
+     -- sort(setIntersection(a,b))
+     a
+
+   -- union with degenerates removed
+   union(a:%, b:%) : % ==
+     -- removeDuplicates!(merge("<",a,b))
+     a
+
+   getDimension(a : %) : NNI ==
+     numEle:NNI := 0
+     top1:List OpenSet := a.topology
+     for x in top1 repeat
+       if getDimension(x) > numEle then numEle := getDimension(x)
+     numEle
+
+   product(a : %, b : %) : % ==
+     top1:List OpenSet := (full2basis a).topology
+     top2:List OpenSet := (full2basis b).topology
+     -- following only works for full not basis
+     sizea:NNI := getDimension(a)
+     sizeb:NNI := getDimension(a)
+     top2s:List OpenSet := [shift(x,sizea) for x in top2]
+     res:List OpenSet := empty
+     for x in top1 repeat
+       for y in top2s repeat
+         res := concat(res,product(x,y))
+     [true,res]
+
+   -- https://sauln.github.io/blog/towers-nerves/
+   -- A nerve construction creates a simplicial complex with the
+   -- topological properties of a given set family.
+   -- The nerve construction is based on a cover of the set family
+   -- The resulting complex is a discrete representation of that cover.
+   nerveConstruction(a : %) : FiniteSimplicialComplex(Integer) ==
+     -- For each nonempty intersection of n elements in the cover,
+     -- add an (n-1)-dimensional simplex.
+     top1:List OpenSet := (a::Rep).topology
+     intersections:List OpenSet := empty
+     for x in top1 repeat
+       for y in top1 repeat
+         intersec:OpenSet := intersection(x,y)
+         intersections := addIfNew(intersections,intersec)
+         -- print(message "x=" << x  << message " y="
+         --    << y << message " intersec=" << intersec)
+     -- print(message "intersections=" << intersections )
+     -- Add a vertex for each element in the cover.
+     -- Add an edge between two vertices if the corresponding sets overlap.
+     leng:NNI := #intersections
+     eles:List Integer := [x for x in 1..leng]
+     top1:List List NNI := getTopologyAsList(intersections)
+     simplicialComplex(eles,top1)
+
+)abbrev domain TOPOSP TopoSpaceFinite
+++ Author: Martin Baker
+++ Description:
+++   TopoSpaceFinite topological space as set + opensets.
+++   for more documentation see:
+++ References:
+++   http://www.euclideanspace.com/maths/topology/algtop/
+
+TopoSpaceFinite() : Exports == Impl where
+  NNI==> NonNegativeInteger
+  x<<y ==> hconcat(x::OutputForm, y::OutputForm)
+
+  Exports ==> SetCategory() with
+
+    topologyFinite : (List Symbol) -> %
+      ++ constructor
+
+    topoSpaceFiniteTrivial : (List String) -> %
+      ++ Constructor for trivial topology
+      ++ Only empty and full open sets (don't need to be explicitly included)
+
+    topoSpaceFiniteDiscrete : (List String) -> %
+      ++ Constructor for discrete topology
+      ++ includes all open sets
+      ++ Don't need to explicitly include empty and full set
+
+    topoSpaceFiniteLeftOrder : (List String) -> %
+      ++ Constructor for order topology
+      ++ The order topology may be considered on partially ordered sets as
+      ++ well as linearly ordered sets
+      ++ The open sets are {x | x<b} where b is 1..max
+      ++ On a linearly ordered set it coincides with the interval topology
+
+    coerce : (x : %) -> OutputForm
+      ++ display as symbols
+
+--    equivalenceRelation : (a : %,va : NNI,vb : NNI) -> OutputForm
+
+    intersection : (a:%, b:%) -> %
+
+    union : (a:%, b:%) -> %
+      ++ union with degenerates removed
+
+    product : (a : %, b : %) -> %
+      ++ The product topology is the coarsest topology (the topology
+      ++ with the fewest open sets) which still has continuous projections
+      ++ to the input topologies.
+
+    nerveConstruction : (a : %) -> FiniteSimplicialComplex(Integer)
+      ++ A nerve construction creates a simplicial complex with the
+      ++ topological properties of a given set family.
+      ++ The nerve construction is based on a cover of the set family
+      ++ The resulting complex is a discrete representation of that cover.
+
+  Impl ==> add
+
+   -- A set and a topology on it.
+   Rep := Record(topSet : List Symbol, topol : TopologyFinite)
+
+   -- constructor
+   topoSpaceFinite(a : List Symbol) : % ==
+     [a,topologyFiniteTrivial()]
+
+   topoSpaceFiniteTrivial(x1 : List String) : % ==
+     [[a::Symbol for a in x1],topologyFiniteTrivial()]
+
+   -- local function to add if new
+   addIfNew(lst : List(List(NNI)), unsorted : List(NNI)) : List(List(NNI)) ==
+       if empty?(unsorted) then return lst
+       sorted : List(NNI) := sort(unsorted)
+       if member?(sorted, lst) then return lst
+       concat(lst, sorted)
+
+   -- generate discrete topology
+   genDiscreteTopology(lst : List(List(NNI)),level : NNI,
+       thisOpenSet : List(NNI), dim : NNI) : List(List(NNI)) ==
+     -- print(message "genDiscreteTopology(" << lst  << message ","
+     --  << level  << message "," << thisOpenSet  << message "," << dim << message ")")
+     top1:List List NNI := lst
+     for i in 1..dim repeat
+       openset1 : List NNI := [i]
+       if not member?(i,thisOpenSet) then
+         -- print(message "genDiscreteTopology not member(" << thisOpenSet  << message ","
+         --   << i  << message ")")
+         openset2 : List(NNI) := concat(thisOpenSet,openset1)
+         if (level+1)<dim then
+           top1 := genDiscreteTopology(top1,level+1,openset2,dim)
+         top1 := addIfNew(top1,openset2)
+     top1
+
+   topoSpaceFiniteDiscrete(x1 : List String) : % ==
+     dim1:NNI := #x1
+     -- top1:List List NNI := empty
+     -- top1 := genDiscreteTopology(top1,1,empty,dim1)
+     [[a::Symbol for a in x1],topologyFiniteDiscrete(dim1)]
+
+   -- generate order topology
+   genOrderTopology(lst : List(List(NNI)),level : NNI,
+       thisOpenSet : List(NNI), dim : NNI) : List(List(NNI)) ==
+     -- print(message "genOrderTopology(" << lst  << message ","
+     --  << level  << message "," << thisOpenSet  << message "," << dim << message ")")
+     top1:List List NNI := lst
+     openset1:List NNI := []
+     for i in 1..dim repeat
+       -- print(message "genOrderTopology loop(" << top1  << message "," << i  << message ")")
+       openset1 := concat(openset1,[i])
+       top1 := concat(top1,openset1)
+     top1
+
+   -- generate order topology
+   topoSpaceFiniteLeftOrder(x1 : List String) : % ==
+     dim1:NNI := #x1
+     -- top1:List List NNI := empty
+     -- top1 := genOrderTopology(top1,1,empty,dim1)
+     [[a::Symbol for a in x1],topologyFiniteLeftOrder(dim1)]
+
+   symboliseList(topSet1 : List Symbol, topol1 : List NNI) : OutputForm ==
+     res:List OutputForm := empty
+     for a in topol1 repeat
+       val:OutputForm := ((topSet1.a)::OutputForm)
+       res := concat(res,val)
+     bracket res
+
+   -- display as symbols
+   coerce(x : %) : OutputForm ==
+     x1:List Symbol := x.topSet
+     topSet1:OutputForm := bracket[a::OutputForm for a in x1]
+     -- x2:List List NNI := (x.topol)::Rep
+     -- topol2:OutputForm := bracket[symboliseList(x1,a) for a in x2]
+     -- bracket[topSet1,topol2]
+     bracket[topSet1,(x.topol)::OutputForm]
+
+   "="(a:%,b:%) : Boolean ==
+     a=b
+
+   -- intersection
+   intersection(a:%, b:%) : % ==
+     -- sort(setIntersection(a,b))
+     a
+
+   -- union with degenerates removed
+   union(a:%, b:%) : % ==
+     -- removeDuplicates!(merge("<",a,b))
+     a
+
+   -- The product topology is the coarsest topology (the topology
+   -- with the fewest open sets) which still has continuous projections
+   -- to the input topologies.
+   product(a : %, b : %) : % ==
+     a1:List Symbol := a.topSet
+     b1:List Symbol := b.topSet
+     -- convert inputs to basis
+     a2:TopologyFinite := full2basis(a.topol)
+     b2:TopologyFinite := full2basis(b.topol)
+     -- Cartesian product of sets
+     pairs:List(Record(left : Symbol, right : Symbol)) := empty
+     for sa in a1 repeat
+       for sb in b1 repeat
+         pair:Record(left : Symbol, right : Symbol) := [sa,sb]
+         pairs := concat(pairs,pair)
+     print(message "points=" << pairs)
+     topols:List(Record(tl : List(NNI), tr : List(NNI))) := empty
+     for ta in getTopology(a2) repeat
+       for tb in getTopology(b2) repeat
+         topol:Record(tl : List(NNI), tr : List(NNI)) := [ta,tb]
+         topols := concat(topols,topol)
+     print(message "topols=" << topols)
+     [a1,a2]
+
+   -- https://sauln.github.io/blog/towers-nerves/
+   -- A nerve construction creates a simplicial complex with the
+   -- topological properties of a given set family.
+   -- The nerve construction is based on a cover of the set family
+   -- The resulting complex is a discrete representation of that cover.
+   nerveConstruction(a : %) : FiniteSimplicialComplex(Integer) ==
+     -- For each nonempty intersection of n elements in the cover,
+     -- add an (n-1)-dimensional simplex.
+     a1:TopologyFinite := a.topol
+     nerveConstruction(a1)
+
+)abbrev domain CONTMAP ContinuousMap
+++ Author: Martin Baker
+++ Description:
+++   A continuous map between two topological spaces
+++   for more documentation see:
+++ References:
+++   http://www.euclideanspace.com/maths/topology/algtop/
+
+ContinuousMap(DOMAIN:TopoSpaceFinite,CODOMAIN:TopoSpaceFinite) : Exports == Impl where
+  NNI==> NonNegativeInteger
+  x<<y ==> hconcat(x::OutputForm, y::OutputForm)
+
+  Exports ==> SetCategory() with
+
+    continuousMap : (im:Table(NNI,NNI),preIm:Table(NNI,NNI)) -> %
+
+  Impl ==> add
+
+   -- The image holds a map of the points in the forward direction.
+   -- The pre-image holds a map of the open sets in the reverse direction.
+   Rep := Record(image:Table(NNI,NNI),preImage:Table(NNI,NNI))
+
+   -- constructor
+   continuousMap(im:Table(NNI,NNI),preIm:Table(NNI,NNI)) : % ==
+     [im,preIm]
