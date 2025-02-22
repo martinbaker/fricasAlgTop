@@ -1,4 +1,0 @@
-fundamentalGroup(sphereSurface(2)$SimplicialComplexFactory,true,true)
-cir := sphereSurface(2)$SimplicialComplexFactory
-dcir := cir::DeltaComplex(VertexSetAbstract)
-dcir::FiniteSimplicialComplex(VertexSetAbstract)

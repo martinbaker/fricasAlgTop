@@ -1,0 +1,348 @@
+-- /usr/local/bin/fricas
+-- )co fricas/sset.spad
+-- r:Record(s:String,faces:List(NNI)) := ["a",[]]
+-- a := finiteSimplicialSet([r])
+-- b := addSimplex(a,r)
+-- simplicialSetTorus()
+--------------------------
+-- x := band()$SimplicialComplexFactory(Integer)
+-- y := sComplexTosSetIfCan(x,false)
+
+)abbrev domain SIMPX Simplex
+++ Author: Martin Baker
+++ Description:
+++   A Simplex used to build SimplicialSets by glueing.
+++   Implemeted as List NNI which must be weakly ordered. That is, the
+++   numbers must be in ascending order (not necessarly sequential).
+++   so [1,3,3] is valid
+++   but [1,2,1] is not valid
+++   The simplex is thought of as all subsets of this list with
+++   order preserved.
+++   Order preserving functions can be decomposed into face maps d(i)
+++   and degeneracy maps s(i) and they obey the following identities:
+++   if i < j then d(i)*d(j) = d(j-1)*d(i)
+++   if i < j then d(i)*s(j) = s(j-1)*d(i)
+++   d(j)*s(j) = id = d(j+1)*s(j)
+++   if i > j+1 then d(i)*s(j) = s(j)*d(i-1)
+++   if i <= j then s(i)*s(j) = s(j+1)*s(i)
+++   where i and j are NNI indexes and * is composition operator
+++   for more documentation see:
+++ References:
+++   http://www.euclideanspace.com/maths/topology/algtop/cell/sSet/
+
+Simplex() : Exports == Impl where
+  NNI==> NonNegativeInteger
+  x<<y ==> hconcat(x::OutputForm, y::OutputForm)
+
+  Exports ==> Join(BoundedLattice(),SetCategory()) with
+
+    simplex : (List(NNI)) -> %
+      ++ constructor
+    getAtIndex : (index : NNI, input : %) -> NNI
+      ++ get the number at given index
+      ++ index is from 0
+    getAll : (input:%) -> List NNI
+      ++ get this face as list of indices
+    d : (index : NNI, input : %) -> %
+      ++ face maps
+      ++ remove entry at given index.
+    s : (index : NNI, input : %) -> %
+      ++ degeneracy maps
+      ++ duplicate entry at given index
+    checkIdentities : (input : %,i : NNI,j : NNI) -> Void
+      ++ Identities are:
+      ++   if i < j then d(i)*d(j) = d(j-1)*d(i)
+      ++   if i < j then d(i)*s(j) = s(j-1)*d(i)
+      ++   d(j)*s(j) = id = d(j+1)*s(j)
+      ++   if i > j+1 then d(i)*s(j) = s(j)*d(i-1)
+      ++   if i <= j then s(i)*s(j) = s(j+1)*s(i)
+
+  Impl ==> add
+
+   -- NNI is total order but List(NNI) can be constrained to be a weak order.
+   Rep := List(NNI)
+
+   -- constructor
+   simplex(a : List(NNI)) : % ==
+     -- validate weak order
+     if (#a)>1 then
+       for i in 1..(#a - 1) repeat
+         if elt(a,i+1)<elt(a,i) then error "invalid simplex order"
+     [a]
+
+   -- output
+   coerce(x : %) : OutputForm ==
+     y := empty()@List(OutputForm)
+     s := cycleEntry x
+     while not(eq?(x, s)) repeat
+       y := concat((first x)::OutputForm, y)
+       x := rest x
+     y := reverse! y
+     bracket y
+
+   "="(a:%,b:%) : Boolean ==
+     a=b
+
+   getAtIndex(index : NNI, input : %) : NNI ==
+     if index<0 then error "index too low in Simplex"
+     if (index+1)>#input then error "index too high in Simplex"
+     elt(input,index+1)
+
+   getAll(input:%) : List NNI == input::Rep
+
+   -- face maps.
+   d(index : NNI, input : %) : % ==
+     delete(input,index+1)
+
+   -- degeneracy maps.
+   s(index : NNI, input : %) : % ==
+     v:NNI := getAtIndex(index,input)
+     insert(v,input,index+1)
+
+   -- Check identities which are:
+   --   if i < j then d(i)*d(j) = d(j-1)*d(i)
+   --   if i < j then d(i)*s(j) = s(j-1)*d(i)
+   --   d(j)*s(j) = id = d(j+1)*s(j)
+   --   if i > j+1 then d(i)*s(j) = s(j)*d(i-1)
+   --   if i <= j then s(i)*s(j) = s(j+1)*s(i)
+   checkIdentities(input : %,i : NNI,j : NNI) : Void ==
+     pj := subtractIfCan(j,1)
+     pj case "failed" =>
+       print (message "j too low j="<<j)
+       void
+     print(message "d(i)*d(j)=" << d(i,d(j,input)))
+     print(message "d(j-1)*d(i)=" << d(pj,d(i,input)))
+     print(message "d(i)*s(j)=" << d(i,s(j,input)))
+     print(message "s(j-1)*d(i)=" << s(pj,d(i,input)))
+     void
+
+   -- meet
+   _/_\(a:%, b:%) : % ==
+     sort(setIntersection(a,b))
+
+   -- top does not work, we don't have access to that.
+   T : % == empty()
+
+   -- join - union with degenerates removed
+   _\_/(a:%, b:%) : % ==
+     removeDuplicates!(merge("<",a,b))
+
+   "__|__" :  % == empty()
+
+
+)abbrev domain FSS FiniteSimplicialSet
+++ Author: Martin Baker
+++ Description:
+++   A SimplicialSet is a set of Simplex (implemented as a list although
+++   order not relavent).
+++   When Simplicies have common indicies this indicates shared faces, that
+++   is, faces that are glued together.
+++   for more documentation see:
+++ References:
+++   http://www.euclideanspace.com/maths/topology/algtop/cell/sSet/
+
+FiniteSimplicialSet() : Exports == Impl where
+  NNI==> NonNegativeInteger
+  x<<y ==> hconcat(x::OutputForm, y::OutputForm)
+
+  Exports ==> Join(BoundedJoinSemilattice(),SetCategory()) with
+    finiteSimplicialSet : (List Simplex) -> %
+      ++ constructor
+    addSimplex : (%,Simplex) -> %
+      ++ Add a face to this simplex
+    simplicialSetTorus : () -> %
+    sSetTosComplexIfCan : (fss : %,trace : Boolean) ->
+         Union(FiniteSimplicialComplex(Integer), "failed")
+    sComplexTosSetIfCan : (fsc : FiniteSimplicialComplex(Integer),trace : Boolean) ->
+         Union(%, "failed")
+
+  Impl ==> add
+   -- a top level simplex with the structure needed to glue it
+   -- to other simplicies.
+   Rep := List Simplex
+
+   -- output
+   coerce(x : %) : OutputForm ==
+       res : OutputForm := message ""
+       if empty?(x) then return bracket(message("empty"))
+       for a in x repeat
+           -- a is face
+           res := vconcat(res, a::OutputForm)
+       --print("FiniteSimplicialComplex coerce num=" << #(s.SIMP))
+       res
+
+--   "="(a:%,b:%) : Boolean ==
+--     true
+
+   -- constructor
+   finiteSimplicialSet(a : List Simplex) : % ==
+     a
+
+   -- Add a face to this simplex
+   addSimplex(x : %, a : Simplex) : % ==
+     [concat(x::Rep, a)]
+
+   simplicialSetTorus() : % ==
+     p1:Simplex := simplex [0]
+     p2:Simplex := simplex [1]
+     p3:Simplex := simplex [2]
+     p4:Simplex := simplex [3]
+     l1:Simplex := simplex [0,1]
+     l2:Simplex := simplex [0,2]
+     l3:Simplex := simplex [1,2]
+     l4:Simplex := simplex [0,3]
+     l5:Simplex := simplex [2,3]
+     s1:Simplex := simplex [4,5,6]
+     s2:Simplex := simplex [5,7,8]
+     [p1,p2,p3,p4,l1,l2,l3,l4,l5,s1,s2]
+
+   -- Local function to find the index of a face and if its not in
+   -- the list then add it to the list.
+   -- This is done in a non-mutable way so we also have to return
+   -- the new list of faces.
+   getIndexAndAppendIfMissing(face:List(NNI),faces:List(List(NNI))) :
+         Record(index : NNI, newFaces:List(List(NNI))) ==
+     if empty?(face) then return [0,faces]
+     i:Integer := position(face,faces)$List(List(NNI))
+     if i<0 then return [#faces,concat(face,faces)]
+     [i::NNI,faces]
+
+   -- construct FiniteSimplicialComplex from FiniteSimplicialSet with trace.
+   sSetTosComplexIfCan(fss : %,trace : Boolean) : _
+            Union(FiniteSimplicialComplex(Integer), "failed") ==
+       if trace then
+           print(message("FiniteSimplicialSet(") << fss << message(")"))
+       fs : List(List(NNI)) := [[]]
+       for a in fss repeat
+         r:List(NNI) := getAll(a)
+         fs := concat(fs,r)
+       vs1 : List(Integer) := []
+       simplicialComplex(vs1, fs)$FiniteSimplicialComplex(Integer)
+       --"failed"
+
+   --import from FiniteSimplicialComplex
+
+   -- construct FiniteSimplicialSet from FiniteSimplicialComplex with trace.
+   sComplexTosSetIfCan(fsc : FiniteSimplicialComplex(Integer),trace : Boolean) : _
+            Union(%, "failed") ==
+       if trace then
+           print(message("FiniteSimplicialComplex(VS,(") << fsc << message(")"))
+       res : List(Simplex) := []
+       --f1 : List(NNI) := empty()$List(NNI)
+       --s1:Record(VERTSET : List(Integer),NUMPOINTS : NNI, SIMP : List(OrientedFacet)) := fsc
+       --for s in s1.SIMP repeat -- s is OrientedFacet
+       --  face:List(NNI) := getIndexes(s)
+       fa : List(List(OrientedFacet)) := addImpliedFaces(fsc)
+       if trace then
+         index1:NNI := 0
+         for a in fa repeat
+           for b in a repeat
+             print(index1 << message(":") << b::OutputForm)
+             index1 := index1+1
+       for a in fa repeat
+         for b in a repeat
+           orf : Record(mul : Integer, fac : List(NNI)) := b pretend Record(mul : Integer, fac : List(NNI))
+           fac2 : List(NNI) := orf.fac
+           fac3 : Simplex := simplex(fac2)
+           res := concat(res,fac3)
+       finiteSimplicialSet(res)
+       --"failed"
+
+   _\_/(a:%, b:%) : % ==
+     a
+
+)if false
+
+   -- local function to add if new
+   addIfNew(lst : List(%), orf : %) : List(%) ==
+       -- print("addIfNew(" << lst << ", " << orf <<
+       --       ")")
+       if not empty?(orf) and member?(orf, lst)$List(%) then return lst
+       concat(lst, orf)
+
+   -- local function to add list if new
+   addIfNew2(lst : List(%), orfs : List(%)) : List(%) ==
+       -- print("addIfNew2(" << lst << ", " << orfs <<
+       --       ")")
+       if empty?(orfs) then return lst
+       res : List(%) := copy(lst)
+       for orf in orfs repeat
+           if not empty?(orf) and not member?(orf, res)$List(%) then
+               res := concat(res, orf)
+       --print("addIfNew2(" << lst << ", " << orfs << _
+       --    ") res=" << res)
+       res
+
+   -- Local function to find the index of a face and if its not in
+   -- the list then add it to the list.
+   -- This is done in a non-mutable way so we have to return the new
+   -- list of faces.
+   getIndexAndAppendIfMissing(face:List(NNI),faces:List(List(NNI))) :
+         Record(index : NNI, newFaces:List(List(NNI))) ==
+     if empty?(face) then return [0,faces]
+     if member?(face,faces)$List(List(NNI)) then
+       [0,faces]
+     [0,faces]
+
+   -- construct FiniteSimplicialComplex from FiniteSimplicialSet with trace.
+   sSetTosComplexIfCan(fss : FiniteSimplicialSet,trace : Boolean) : _
+            Union(%, "failed") ==
+       if trace then
+           print(message("simplicialComplex(") << dc << message(")"))
+       dcrep := dc pretend Record(VERTSET : List(VS), _
+                                  MAPS : List(List(List(Integer))))
+       NumPoints : NNI := 0
+       vertset : List(VS) := dcrep.VERTSET
+       maps : List(List(List(Integer))) := reverse(dcrep.MAPS)
+       -- res contains list which will become the result
+       res := []$List(OrientedFacet)
+       -- deleteList contains list for removal at the end
+       deleteList := []$List(OrientedFacet)
+       lastMap := []$List(List(OrientedFacet))
+       for map in maps for grade in 1..(#maps) repeat
+           lastMap := concat(lastMap, []$List(OrientedFacet))
+           if trace then
+              print("simplicialComplex map=" << map << _
+                             " grade=" << grade << _
+                             " lastMap=" << lastMap)
+           if grade = 1 then
+               -- points so facets are equal to map
+               NumPoints := #map
+               thisPoint : NNI := 0
+               for facet in map repeat
+                   thisPoint := thisPoint + 1
+                   if not empty?(facet) then
+                       orf := orientedFacetSigned([thisPoint])
+                       if trace then
+                         print(message "simplicialComplex add point=" << _
+                            orf <<  message " from face=" << facet)
+                       res := concat(res, orf)
+                       lastMap.grade :=concat(lastMap.grade, orf)
+           if grade > 1 then
+               -- for higher grades lookup index in next lower grade
+               for facet in map repeat
+                   --print(message "simplicialComplex g=" << grade <<
+                   --      message" facet=" << facet)
+                   subFacets := []$List(OrientedFacet)
+                   for i in facet repeat
+                       ind : NNI := abs(i)::NNI
+                       subFacet : OrientedFacet := (lastMap.(grade-1)).ind
+                       m : Integer := if i<1 then -1 else 1
+                       -- construct an OrientedFacet with the appropriate
+                       -- sign from index
+                       subFacet2 : OrientedFacet := orientedFacet(m, subFacet)
+                       deleteList := concat(deleteList, subFacet)
+                       subFacets := concat (subFacets, subFacet2)
+                   orfx : Union(OrientedFacet, "failed") := _
+                          orientedFacetIfCan(subFacets)
+                   if orfx case "failed" then return "failed"
+                   orf := orfx@OrientedFacet
+                   res := concat(res, orf)
+                   lastMap.grade := concat(lastMap.grade, orf)
+       -- remove any facets that are contained in higher facets
+       for r in deleteList repeat
+           res := remove(r, res)
+       if trace then print(message("simplicialComplex construct res=") << res)
+       [vertset,NumPoints, res]
+
+)endif
