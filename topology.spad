@@ -26,6 +26,11 @@
 -- y := topoSpaceFiniteLeftOrder(["d","e"])
 -- product(x,y)
 -- nerveConstruction(x)
+--
+-- test maps
+-- s := topoSpaceFiniteLeftOrder(["a","b","c"])
+-- t := topoSpaceFiniteLeftOrder(["d","e"])
+-- map : ContinuousMap(s,t) := continuousMap([1,2,2],[])
 
 )abbrev domain OPENSET OpenSet
 ++ Author: Martin Baker
@@ -419,6 +424,8 @@ TopoSpaceFinite() : Exports == Impl where
     coerce : (x : %) -> OutputForm
       ++ display as symbols
 
+    getTopology : (x : %) -> TopologyFinite
+
 --    equivalenceRelation : (a : %,va : NNI,vb : NNI) -> OutputForm
 
     intersection : (a:%, b:%) -> %
@@ -441,6 +448,9 @@ TopoSpaceFinite() : Exports == Impl where
 
    -- A set and a topology on it.
    Rep := Record(topSet : List Symbol, topol : TopologyFinite)
+
+   getTopology(x : %) : TopologyFinite ==
+     x.topol
 
    -- constructor
    topoSpaceFinite(a : List Symbol) : % ==
@@ -577,14 +587,38 @@ ContinuousMap(DOMAIN:TopoSpaceFinite,CODOMAIN:TopoSpaceFinite) : Exports == Impl
 
   Exports ==> SetCategory() with
 
-    continuousMap : (im:Table(NNI,NNI),preIm:Table(NNI,NNI)) -> %
+    -- for now just use NNI indexes, later may generalise like this:
+    -- continuousMap : (im:Table(NNI,NNI),preIm:Table(NNI,NNI)) -> %
+    continuousMap : (im:List NNI,preIm:List NNI) -> %
+      ++ If preIm is empty then reconstuct it
 
   Impl ==> add
 
    -- The image holds a map of the points in the forward direction.
    -- The pre-image holds a map of the open sets in the reverse direction.
-   Rep := Record(image:Table(NNI,NNI),preImage:Table(NNI,NNI))
+   -- for now just use NNI indexes, later may generalise like this:
+   -- Rep := Record(image:Table(NNI,NNI),preImage:Table(NNI,NNI))
+   Rep := Record(image:List NNI,preImage:List NNI)
 
    -- constructor
-   continuousMap(im:Table(NNI,NNI),preIm:Table(NNI,NNI)) : % ==
+   continuousMap(im:List NNI,preIm:List NNI) : % ==
+     d:TopoSpaceFinite := DOMAIN
+     cd:TopoSpaceFinite := CODOMAIN
+     topS : TopologyFinite := getTopology(d)
+     topT : TopologyFinite := getTopology(cd)
+     t1 :List List NNI := getTopology(topS)
+     t2 :List List NNI := getTopology(topT)
+     -- If preIm is empty then reconstuct it
+     if empty?(preIm) then
+       currentPreIm:List NNI := []
+       for p in im for i in 1..(#im) repeat
+         currentPreIm := concat(currentPreIm,i)
+         -- currentPreIm := concat(currentPreIm,DOMAIN.p)
+       preIm := currentPreIm
      [im,preIm]
+
+   coerce(x : %) : OutputForm ==
+     x1:List NNI := (x.image)
+     x2:List NNI := (x.preImage)
+     message "map image=" << brace [a::OutputForm for a in x1] <<
+       message " preimage=" << brace [a::OutputForm for a in x2]
