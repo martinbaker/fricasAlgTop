@@ -32,6 +32,11 @@
 -- target := topoSpaceFiniteLeftOrder(["d","e"])
 -- map : ContinuousMap(source,target) := continuousMap([1,2,2],[])
 -- map : ContinuousMap(source,target) := continuousMap([2,1,2],[])
+--
+-- test homsets
+-- source := topoSpaceFiniteLeftOrder(["a","b","c"])
+-- target := topoSpaceFiniteLeftOrder(["d","e"])
+-- h : Homset(source,target) := homset()
 
 )abbrev domain OPENSET OpenSet
 ++ Author: Martin Baker
@@ -602,10 +607,12 @@ ContinuousMap(DOMAIN:TopoSpaceFinite,CODOMAIN:TopoSpaceFinite) : Exports == Impl
     continuousMap : (im:List NNI,preIm:List NNI) -> %
       ++ Construct given image and pre-image
 
+    getContents : (x : %) -> Record(image:List NNI,preImage:List NNI)
+
   Impl ==> add
 
-   -- The image holds a map of the points in the forward direction.
-   -- The pre-image holds a map of the open sets in the reverse direction.
+   -- image: a map of the points in the forward direction.
+   -- preImage: a map of the open sets in the reverse direction.
    -- for now just use NNI indexes, later may generalise like this:
    -- Rep := Record(image:Table(NNI,NNI),preImage:Table(NNI,NNI))
    Rep := Record(image:List NNI,preImage:List NNI)
@@ -614,19 +621,24 @@ ContinuousMap(DOMAIN:TopoSpaceFinite,CODOMAIN:TopoSpaceFinite) : Exports == Impl
    continuousMap(im:List NNI) : % ==
      t1 :List List NNI := getTopologyToList(DOMAIN)
      t2 :List List NNI := getTopologyToList(CODOMAIN)
+     -- print (message "top in=" << t1 << message " top out=" << t2 << message " im=" << im)
      preImMap:List NNI := []
      -- for every open set in the codomain
      for os in t2 repeat
        currentPreIm:List NNI := []
+       -- for every point p in the codomain i is its preimage
        for p in im for i in 1..(#im) repeat
          if member?(p,os) then
            if not member?(i,currentPreIm) then
              currentPreIm := concat(currentPreIm,i)
-       if entry?(currentPreIm,t1)
+       -- print (message "  os=" << os << message " preIm=" << currentPreIm)
+       sortedPreIm:List NNI := sort currentPreIm
+       if entry?(sortedPreIm,t1)
          then
-           preImMap := concat(preImMap,qcoerce(position(currentPreIm,t1)))
+           -- print (message " open set:=" << sortedPreIm << message " is in domain")
+           preImMap := concat(preImMap,qcoerce(position(sortedPreIm,t1)))
          else
-           print (message " open set:=" << currentPreIm << message " not in domain")
+           print (message " open set:=" << sortedPreIm << message " not in domain")
            error "invalid continuous map"
      [im,preImMap]
 
@@ -635,8 +647,109 @@ ContinuousMap(DOMAIN:TopoSpaceFinite,CODOMAIN:TopoSpaceFinite) : Exports == Impl
      if empty?(preIm) then return continuousMap(im)
      [im,preIm]
 
+   getContents(x : %) : Record(image:List NNI,preImage:List NNI) ==
+     x@Rep
+
    coerce(x : %) : OutputForm ==
      x1:List NNI := (x.image)
      x2:List NNI := (x.preImage)
      message "map image=" << bracket [a::OutputForm for a in x1] <<
        message " preimage=" << bracket [a::OutputForm for a in x2]
+
+)abbrev domain HOMSET Homset
+++ Author: Martin Baker
+++ Description:
+++   A set of continuous maps between two topological spaces
+++   may be a homotopy
+++   for more documentation see:
+++ References:
+++   http://www.euclideanspace.com/maths/topology/algtop/
+
+Homset(DOMAIN:TopoSpaceFinite,CODOMAIN:TopoSpaceFinite) : Exports == Impl where
+  NNI==> NonNegativeInteger
+  x<<y ==> hconcat(x::OutputForm, y::OutputForm)
+
+  Exports ==> SetCategory() with
+
+    allMaps:(maxDomain:NNI,maxCodomain:NNI) -> List List NNI
+
+    homset : () -> %
+      ++ Construct multiple maps from only images and reconstuct pre-images
+
+  Impl ==> add
+
+   -- image: a map of the points in the forward direction.
+   -- preImage: a map of the open sets in the reverse direction.
+   Rep := List Record(image:List NNI,preImage:List NNI)
+
+   incrementImage(im:List NNI,pos:NNI,maxDomain:NNI,maxCodomain:NNI) : List NNI ==
+     if empty?(im) then return im
+     val:NNI := elt(im,pos)
+     imCopy:List NNI := copy im
+     if val < maxDomain then
+       setelt!(imCopy,pos,val+1)
+       return imCopy
+     setelt!(imCopy,pos,1)
+     if pos+1 > maxCodomain then return []
+     incrementImage(imCopy,pos+1,maxDomain,maxCodomain)
+
+   -- local function to generate all possible maps
+   allMaps(maxDomain:NNI,maxCodomain:NNI) : List List NNI ==
+     currentDomain:NNI := 1
+     currentCodomain:NNI := 1
+     im:List NNI := [1 for ignore in 1..maxDomain]
+     res: List List NNI := [copy im]
+     -- print (message "allMaps1 im:" << im << message " currentDomain:" << currentDomain <<
+     --   message " currentCodomain:" <<  currentCodomain)
+     while true repeat
+       im := incrementImage(im,1,maxCodomain,maxDomain)
+       if empty?(im) then return res
+       res:= concat(res,im)
+     res
+
+   preImage(im:List NNI) : List NNI ==
+     t1 :List List NNI := getTopologyToList(DOMAIN)
+     t2 :List List NNI := getTopologyToList(CODOMAIN)
+     -- print (message "preImage: top in=" << t1 << message " top out=" << t2 << message " im=" << im)
+     preImMap:List NNI := []
+     -- for every open set in the codomain
+     for os in t2 repeat
+       currentPreIm:List NNI := []
+       -- for every point p in the codomain i is its preimage
+       for p in im for i in 1..(#im) repeat
+         if member?(p,os) then
+           if not member?(i,currentPreIm) then
+             currentPreIm := concat(currentPreIm,i)
+       -- print (message "  preImage: os=" << os << message " preIm=" << currentPreIm)
+       sortedPreIm:List NNI := sort currentPreIm
+       if entry?(sortedPreIm,t1)
+         then
+           -- print (message " preImage: open set:=" << sortedPreIm << message " is in domain")
+           preImMap := concat(preImMap,qcoerce(position(sortedPreIm,t1)))
+         else
+           -- print (message " preImage: open set:=" << sortedPreIm << message " not in domain")
+           return []
+     preImMap
+
+   -- constructor
+   homset() : % ==
+     maxDomain:NNI := #getTopologyToList(DOMAIN) -- number of points in domain
+     maxCodomain:NNI := #getTopologyToList(CODOMAIN) -- number of points in codomain
+     -- print (message "homset: domain=" << getTopologyToList(DOMAIN) << message " size=" << #getTopologyToList(DOMAIN))
+     -- print (message "homset: codomain=" << getTopologyToList(CODOMAIN) << message " size=" << #getTopologyToList(CODOMAIN))
+     all : List List NNI := allMaps(maxDomain,maxCodomain)
+     -- print (message "homset: all=" << all)
+     res : List Record(image:List NNI,preImage:List NNI) := []
+     for im in all repeat
+       -- currentMap : ContinuousMap(DOMAIN,CODOMAIN) := continuousMap(im)
+       -- currentRep : Record(image:List NNI,preImage:List NNI) := getContents(currentMap)
+       pm : List NNI := preImage(im)
+       -- print (message " next image:" << im << message " preimage:" << pm)
+       if not empty?(pm) then
+         -- print (message "not empty")
+         currentRep : Record(image:List NNI,preImage:List NNI) := [im,pm]
+         res := concat (res,currentRep)
+     res
+
+   coerce(x : %) : OutputForm ==
+     message "homset" << bracket[a::OutputForm for a in x]
