@@ -2,7 +2,6 @@
 -- )co fricas/topology.spad
 --
 -- To test out:
--- test OpenSet
 -- a := openSet [1,2,3]
 -- b := openSet [1,2]
 -- c := openSet [2,4]
@@ -37,114 +36,6 @@
 -- source := topoSpaceFiniteLeftOrder(["a","b","c"])
 -- target := topoSpaceFiniteLeftOrder(["d","e"])
 -- h : Homset(source,target) := homset()
-
-)abbrev domain OPENSET OpenSet
-++ Author: Martin Baker
-++ Description:
-++   An open set.
-++   Modeled using natural numbers (NNI), this is so that
-++   they can be used to index other sets, it does not
-++   imply a total order of the sets containing them.
-++   for more documentation see:
-++ References:
-++   http://www.euclideanspace.com/maths/topology/algtop/
-
-OpenSet() : Exports == Impl where
-  NNI==> NonNegativeInteger
-  x<<y ==> hconcat(x::OutputForm, y::OutputForm)
-
-  Exports ==> Join(SetCategory,PartialOrder) with
-
-    openSet : (List NNI) -> %
-      ++ constructor from list
-
-    getOpenSetAsList : (t:%) -> List(NNI)
-
-    intersection : (a:%, b:%) -> %
-      ++ intersection with degenerates removed
-
-    union : (a:%, b:%) -> %
-      ++ union with degenerates removed
-
-    product : (a : %, b : %) -> %
-
-    shift : (a : %, distance : NNI) -> %
-
-    getDimension : (a : %) -> NNI
-
-    addIfNew : (a : List %, b : %) -> List %
-
-    isEmpty? : (a:%) -> Boolean
-
-  Impl ==> add
-
-   -- A set and a topology on it.
-   Rep := List NNI
-
-   -- constructor
-   openSet(a : List NNI) : % ==
-     [sort a]
-
-   getOpenSetAsList(t:%) : List(NNI) ==
-     t::Rep
-
-   -- display as set
-   coerce(x : %) : OutputForm ==
-     x1:List NNI := x::Rep
-     brace [a::OutputForm for a in x1]
-
-   -- true if a contained in b
-   -- generates logic of inclusions
-   _<_=(a:%,b:%) : Boolean ==
-     for x in a::Rep repeat
-       if not member?(x, b::Rep) then return false
-     true
-
-   -- true if they contain the same elements
-   -- ignore degenerate (multiple copies) elements
-   _=(a:%,b:%) : Boolean ==
-     for x in a::Rep repeat
-       if not member?(x, b::Rep) then return false
-     for x in b::Rep repeat
-       if not member?(x, a::Rep) then return false
-     true
-
-   -- intersection with degenerates removed
-   intersection(a:%, b:%) : % ==
-     res:List NNI := empty
-     for x in a::Rep repeat
-       for y in b::Rep repeat
-         if x=y and not member?(x, res) then res:=concat(res,x)
-     res
-
-   -- union with degenerates removed
-   union(a:%, b:%) : % ==
-     res:List NNI := empty
-     for x in a::Rep repeat
-       if not member?(x, res) then res:=concat(res,x)
-     for x in b::Rep repeat
-       if not member?(x, res) then res:=concat(res,x)
-     sort res
-
-   product(a : %, b : %) : % ==
-     -- should check that a and b are disjoint
-     concat(a,b)
-
-   shift(a : %, distance : NNI) : % ==
-     [x+distance for x in a]
-
-   getDimension(a : %) : NNI ==
-     top1:List NNI := a::Rep
-     #top1
-
-   addIfNew(a : List %, b : %) : List % ==
-       if empty?(b) then return a
-       sorted : List(NNI) := sort(b::Rep)
-       if member?(sorted, a) then return a
-       concat(a, sorted)
-
-   isEmpty?(a:%) : Boolean ==
-     isEmpty?(a::Rep)
 
 )abbrev domain TOPFIN TopologyFinite
 ++ Author: Martin Baker
@@ -184,8 +75,6 @@ TopologyFinite() : Exports == Impl where
 
     getTopology : (a:%) -> List List NNI
 
-    -- getTopologyAsList : (t:List OpenSet) -> List List NNI
-
     full2basis : (a:%) -> %
       ++ Remove non-basis open sets
       ++ That is, for each element, only the smallest open set that includes it.
@@ -215,16 +104,17 @@ TopologyFinite() : Exports == Impl where
   Impl ==> add
 
    -- A set and a topology on it.
-   Rep := Record(basis:Boolean,topology:List OpenSet)
+   Rep := Record(basis:Boolean,topology:List (Set NNI))
 
-   getTopologyAsList(t:List OpenSet) : List List NNI ==
-     [getOpenSetAsList(a) for a in t]
+   -- getTopologyAsList(t:List (Set NNI)) : List List NNI ==
+   --   [getOpenSetAsList(a) for a in t]
 
    getTopology(a:%) : List List NNI ==
-     getTopologyAsList(a.topology)
+     t:List (Set NNI) := a.topology
+     [members(a) for a in t]
 
-   setTopologyFromList(t:List(List(NNI))) : List OpenSet ==
-     [openSet(a) for a in t]
+   setTopologyFromList(t:List(List(NNI))) : List (Set NNI) ==
+     [set(a) for a in t]
 
    -- constructor
    topologyFinite(a : List List NNI) : % ==
@@ -288,7 +178,7 @@ TopologyFinite() : Exports == Impl where
    full2basis(a:%) : % ==
      -- assume number of elements is maximum index
      numEle:NNI := 0
-     top1:List List NNI := getTopologyAsList(a.topology)
+     top1:List List NNI := getTopology(a)
      for x in top1 repeat
        for y in x repeat
          if y>numEle then numEle:=y
@@ -315,7 +205,7 @@ TopologyFinite() : Exports == Impl where
 
    -- Add all unions of open sets not already included
    basis2full(a:%) : % ==
-     top1:List List NNI := getTopologyAsList(a.topology)
+     top1:List List NNI := getTopology(a)
      top2:List List NNI := copy(top1) -- so we dont alter top1 inside loop
      for x in top1 repeat
        for y in top1 repeat
@@ -335,7 +225,7 @@ TopologyFinite() : Exports == Impl where
 
    -- display
    coerce(x : %) : OutputForm ==
-     x1:List OpenSet := x.topology
+     x1:List (Set NNI) := x.topology
      msg:OutputForm := if x.basis then message "basis=" else message "topology="
      msg << bracket[(a::OutputForm) for a in x1]
 
@@ -354,23 +244,37 @@ TopologyFinite() : Exports == Impl where
 
    getDimension(a : %) : NNI ==
      numEle:NNI := 0
-     top1:List OpenSet := a.topology
+     top1:List (Set NNI) := a.topology
      for x in top1 repeat
-       if getDimension(x) > numEle then numEle := getDimension(x)
+       if cardinality(x)$(Set NNI) > numEle then numEle := cardinality(x)$(Set NNI)
      numEle
 
+   shift(a : Set NNI, distance : NNI) : Set NNI ==
+     set [x+distance for x in members(a)]
+
+   productOfSets(a : Set NNI, b : Set NNI) : Set NNI ==
+     -- should check that a and b are disjoint
+     union(a,b)
+
    product(a : %, b : %) : % ==
-     top1:List OpenSet := (full2basis a).topology
-     top2:List OpenSet := (full2basis b).topology
+     top1:List (Set NNI) := (full2basis a).topology
+     top2:List (Set NNI) := (full2basis b).topology
      -- following only works for full not basis
      sizea:NNI := getDimension(a)
      sizeb:NNI := getDimension(a)
-     top2s:List OpenSet := [shift(x,sizea) for x in top2]
-     res:List OpenSet := empty
+     top2s:List (Set NNI) := [shift(x,sizea) for x in top2]
+     res:List (Set NNI) := empty
      for x in top1 repeat
        for y in top2s repeat
-         res := concat(res,product(x,y))
+         res := concat(res,productOfSets(x,y))
      [true,res]
+
+   -- local function to add if new
+   addIfNew2(lst : List(Set(NNI)), unsorted : Set(NNI)) : List(Set(NNI)) ==
+       if empty?(unsorted) then return lst
+       -- sorted : Set(NNI) := sort(unsorted)
+       if member?(unsorted, lst) then return lst
+       concat(lst, unsorted)
 
    -- https://sauln.github.io/blog/towers-nerves/
    -- A nerve construction creates a simplicial complex with the
@@ -380,12 +284,12 @@ TopologyFinite() : Exports == Impl where
    nerveConstruction(a : %) : FiniteSimplicialComplex(Integer) ==
      -- For each nonempty intersection of n elements in the cover,
      -- add an (n-1)-dimensional simplex.
-     top1:List OpenSet := (a::Rep).topology
-     intersections:List OpenSet := empty
+     top1:List (Set NNI) := (a::Rep).topology
+     intersections:List (Set NNI) := empty
      for x in top1 repeat
        for y in top1 repeat
-         intersec:OpenSet := intersection(x,y)
-         intersections := addIfNew(intersections,intersec)
+         intersec:(Set NNI) := intersect(x,y)
+         intersections := addIfNew2(intersections,intersec)
          -- print(message "x=" << x  << message " y="
          --    << y << message " intersec=" << intersec)
      -- print(message "intersections=" << intersections )
@@ -393,7 +297,7 @@ TopologyFinite() : Exports == Impl where
      -- Add an edge between two vertices if the corresponding sets overlap.
      leng:NNI := #intersections
      eles:List Integer := [x for x in 1..leng]
-     top1:List List NNI := getTopologyAsList(intersections)
+     top1:List List NNI := [members(a) for a in intersections]
      simplicialComplex(eles,top1)
 
 )abbrev domain TOPOSP TopoSpaceFinite
@@ -707,7 +611,7 @@ Homset(DOMAIN:TopoSpaceFinite,CODOMAIN:TopoSpaceFinite) : Exports == Impl where
        res:= concat(res,im)
      res
 
-   preImage(im:List NNI) : List NNI ==
+   preImageFromImage(im:List NNI) : List NNI ==
      t1 :List List NNI := getTopologyToList(DOMAIN)
      t2 :List List NNI := getTopologyToList(CODOMAIN)
      -- print (message "preImage: top in=" << t1 << message " top out=" << t2 << message " im=" << im)
@@ -741,9 +645,7 @@ Homset(DOMAIN:TopoSpaceFinite,CODOMAIN:TopoSpaceFinite) : Exports == Impl where
      -- print (message "homset: all=" << all)
      res : List Record(image:List NNI,preImage:List NNI) := []
      for im in all repeat
-       -- currentMap : ContinuousMap(DOMAIN,CODOMAIN) := continuousMap(im)
-       -- currentRep : Record(image:List NNI,preImage:List NNI) := getContents(currentMap)
-       pm : List NNI := preImage(im)
+       pm : List NNI := preImageFromImage(im)
        -- print (message " next image:" << im << message " preimage:" << pm)
        if not empty?(pm) then
          -- print (message "not empty")
@@ -751,5 +653,11 @@ Homset(DOMAIN:TopoSpaceFinite,CODOMAIN:TopoSpaceFinite) : Exports == Impl where
          res := concat (res,currentRep)
      res
 
+   outputOneEntry(x : Record(image:List NNI,preImage:List NNI)) : OutputForm ==
+     x1:List NNI := (x.image)
+     x2:List NNI := (x.preImage)
+     message "map image=" << bracket [a::OutputForm for a in x1] <<
+       message " preimage=" << bracket [a::OutputForm for a in x2]
+
    coerce(x : %) : OutputForm ==
-     message "homset" << bracket[a::OutputForm for a in x]
+     message "homset" << bracket[outputOneEntry(a) for a in x]
