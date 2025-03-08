@@ -2,12 +2,6 @@
 -- )co fricas/topology.spad
 --
 -- To test out:
--- a := openSet [1,2,3]
--- b := openSet [1,2]
--- c := openSet [2,4]
--- product(shift(a,4),b)
--- intersection(a,c)
--- union(a,c)
 --
 -- test TopologyFinite
 -- x := topologyFiniteLeftOrder(3)
@@ -29,13 +23,13 @@
 -- test maps
 -- source := topoSpaceFiniteLeftOrder(["a","b","c"])
 -- target := topoSpaceFiniteLeftOrder(["d","e"])
--- map : ContinuousMap(source,target) := continuousMap([1,2,2],[])
--- map : ContinuousMap(source,target) := continuousMap([2,1,2],[])
+-- map := continuousMap([1,2,2],[]) $ ContinuousMap(source,target)
+-- map := continuousMap([2,1,2],[]) $ ContinuousMap(source,target)
 --
 -- test homsets
 -- source := topoSpaceFiniteLeftOrder(["a","b","c"])
 -- target := topoSpaceFiniteLeftOrder(["d","e"])
--- h : Homset(source,target) := homset()
+-- h := homset() $ Homset(source,target)
 
 )abbrev domain TOPFIN TopologyFinite
 ++ Author: Martin Baker
@@ -46,7 +40,7 @@
 ++   topology can be reconstructed from it.
 ++   for more documentation see:
 ++ References:
-++   http://www.euclideanspace.com/maths/topology/algtop/
+++   https://www.euclideanspace.com/prog/scratchpad/mycode/topology/finite/
 
 TopologyFinite() : Exports == Impl where
   NNI==> NonNegativeInteger
@@ -128,7 +122,7 @@ TopologyFinite() : Exports == Impl where
        if empty?(unsorted) then return lst
        sorted : List(NNI) := sort(unsorted)
        if member?(sorted, lst) then return lst
-       concat(lst, sorted)
+       cons(sorted,lst)
 
    -- generate discrete topology
    genDiscreteTopology(lst : List(List(NNI)),level : NNI,
@@ -161,9 +155,9 @@ TopologyFinite() : Exports == Impl where
      openset1:List NNI := []
      for i in 1..dim repeat
        -- print(message "genOrderTopology loop(" << top1  << message "," << i  << message ")")
-       openset1 := concat(openset1,[i])
-       top1 := concat(top1,openset1)
-     top1
+       openset1 := cons(i,openset1)
+       top1 := cons(openset1,top1)
+     reverse top1
 
    -- generate order topology
    topologyFiniteLeftOrder(dim:NNI) : % ==
@@ -200,7 +194,7 @@ TopologyFinite() : Exports == Impl where
    unionLocal(a:List NNI, b:List NNI) : List NNI ==
      res:List NNI := a
      for x in b repeat
-       if not member?(x, res) then res:=concat(res, x)
+       if not member?(x, res) then res:=cons(x,res)
      res
 
    -- Add all unions of open sets not already included
@@ -214,14 +208,6 @@ TopologyFinite() : Exports == Impl where
          -- print(message "x=" << x  << message " y="
          --  << y << message " union=" << z)
      [false,setTopologyFromList(top2)]
-
-   -- no access to symbols here --
-   --symboliseList(topol1 : List NNI) : OutputForm ==
-   --  res:List OutputForm := empty
-   --  for a in topol1 repeat
-   --    val:OutputForm := (a::OutputForm)
-   --    res := concat(res,val)
-   --  bracket res
 
    -- display
    coerce(x : %) : OutputForm ==
@@ -266,7 +252,7 @@ TopologyFinite() : Exports == Impl where
      res:List (Set NNI) := empty
      for x in top1 repeat
        for y in top2s repeat
-         res := concat(res,productOfSets(x,y))
+         res := cons(productOfSets(x,y),res)
      [true,res]
 
    -- local function to add if new
@@ -274,7 +260,7 @@ TopologyFinite() : Exports == Impl where
        if empty?(unsorted) then return lst
        -- sorted : Set(NNI) := sort(unsorted)
        if member?(unsorted, lst) then return lst
-       concat(lst, unsorted)
+       cons(unsorted,lst)
 
    -- https://sauln.github.io/blog/towers-nerves/
    -- A nerve construction creates a simplicial complex with the
@@ -306,7 +292,7 @@ TopologyFinite() : Exports == Impl where
 ++   TopoSpaceFinite topological space as set + opensets.
 ++   for more documentation see:
 ++ References:
-++   http://www.euclideanspace.com/maths/topology/algtop/
+++   https://www.euclideanspace.com/prog/scratchpad/mycode/topology/finite/
 
 TopoSpaceFinite() : Exports == Impl where
   NNI==> NonNegativeInteger
@@ -381,7 +367,7 @@ TopoSpaceFinite() : Exports == Impl where
        if empty?(unsorted) then return lst
        sorted : List(NNI) := sort(unsorted)
        if member?(sorted, lst) then return lst
-       concat(lst, sorted)
+       cons(sorted,lst)
 
    -- generate discrete topology
    genDiscreteTopology(lst : List(List(NNI)),level : NNI,
@@ -415,8 +401,8 @@ TopoSpaceFinite() : Exports == Impl where
      openset1:List NNI := []
      for i in 1..dim repeat
        -- print(message "genOrderTopology loop(" << top1  << message "," << i  << message ")")
-       openset1 := concat(openset1,[i])
-       top1 := concat(top1,openset1)
+       openset1 := cons(i,openset1)
+       top1 := cons(openset1,top1)
      top1
 
    -- generate order topology
@@ -430,8 +416,8 @@ TopoSpaceFinite() : Exports == Impl where
      res:List OutputForm := empty
      for a in topol1 repeat
        val:OutputForm := ((topSet1.a)::OutputForm)
-       res := concat(res,val)
-     bracket res
+       res := cons(val,res)
+     bracket (reverse res)
 
    -- display as symbols
    coerce(x : %) : OutputForm ==
@@ -469,13 +455,13 @@ TopoSpaceFinite() : Exports == Impl where
      for sa in a1 repeat
        for sb in b1 repeat
          pair:Record(left : Symbol, right : Symbol) := [sa,sb]
-         pairs := concat(pairs,pair)
+         pairs := cons(pair,pairs)
      print(message "points=" << pairs)
      topols:List(Record(tl : List(NNI), tr : List(NNI))) := empty
      for ta in getTopology(a2) repeat
        for tb in getTopology(b2) repeat
          topol:Record(tl : List(NNI), tr : List(NNI)) := [ta,tb]
-         topols := concat(topols,topol)
+         topols := cons(topol,topols)
      print(message "topols=" << topols)
      [a1,a2]
 
@@ -496,7 +482,7 @@ TopoSpaceFinite() : Exports == Impl where
 ++   A continuous map between two topological spaces
 ++   for more documentation see:
 ++ References:
-++   http://www.euclideanspace.com/maths/topology/algtop/
+++   https://www.euclideanspace.com/prog/scratchpad/mycode/topology/finite/
 
 ContinuousMap(DOMAIN:TopoSpaceFinite,CODOMAIN:TopoSpaceFinite) : Exports == Impl where
   NNI==> NonNegativeInteger
@@ -534,13 +520,13 @@ ContinuousMap(DOMAIN:TopoSpaceFinite,CODOMAIN:TopoSpaceFinite) : Exports == Impl
        for p in im for i in 1..(#im) repeat
          if member?(p,os) then
            if not member?(i,currentPreIm) then
-             currentPreIm := concat(currentPreIm,i)
+             currentPreIm := cons(i,currentPreIm)
        -- print (message "  os=" << os << message " preIm=" << currentPreIm)
        sortedPreIm:List NNI := sort currentPreIm
        if entry?(sortedPreIm,t1)
          then
            -- print (message " open set:=" << sortedPreIm << message " is in domain")
-           preImMap := concat(preImMap,qcoerce(position(sortedPreIm,t1)))
+           preImMap := cons(qcoerce(position(sortedPreIm,t1)),preImMap)
          else
            print (message " open set:=" << sortedPreIm << message " not in domain")
            error "invalid continuous map"
@@ -552,7 +538,7 @@ ContinuousMap(DOMAIN:TopoSpaceFinite,CODOMAIN:TopoSpaceFinite) : Exports == Impl
      [im,preIm]
 
    getContents(x : %) : Record(image:List NNI,preImage:List NNI) ==
-     x@Rep
+     x::Rep
 
    coerce(x : %) : OutputForm ==
      x1:List NNI := (x.image)
@@ -567,7 +553,7 @@ ContinuousMap(DOMAIN:TopoSpaceFinite,CODOMAIN:TopoSpaceFinite) : Exports == Impl
 ++   may be a homotopy
 ++   for more documentation see:
 ++ References:
-++   http://www.euclideanspace.com/maths/topology/algtop/
+++   https://www.euclideanspace.com/prog/scratchpad/mycode/topology/finite/
 
 Homset(DOMAIN:TopoSpaceFinite,CODOMAIN:TopoSpaceFinite) : Exports == Impl where
   NNI==> NonNegativeInteger
@@ -578,7 +564,7 @@ Homset(DOMAIN:TopoSpaceFinite,CODOMAIN:TopoSpaceFinite) : Exports == Impl where
     allMaps:(maxDomain:NNI,maxCodomain:NNI) -> List List NNI
 
     homset : () -> %
-      ++ Construct multiple maps from only images and reconstuct pre-images
+      ++ Multiple possible maps from only images and reconstuct pre-images
 
   Impl ==> add
 
@@ -608,7 +594,7 @@ Homset(DOMAIN:TopoSpaceFinite,CODOMAIN:TopoSpaceFinite) : Exports == Impl where
      while true repeat
        im := incrementImage(im,1,maxCodomain,maxDomain)
        if empty?(im) then return res
-       res:= concat(res,im)
+       res:= cons(im,res)
      res
 
    preImageFromImage(im:List NNI) : List NNI ==
@@ -623,13 +609,13 @@ Homset(DOMAIN:TopoSpaceFinite,CODOMAIN:TopoSpaceFinite) : Exports == Impl where
        for p in im for i in 1..(#im) repeat
          if member?(p,os) then
            if not member?(i,currentPreIm) then
-             currentPreIm := concat(currentPreIm,i)
+             currentPreIm := cons(i,currentPreIm)
        -- print (message "  preImage: os=" << os << message " preIm=" << currentPreIm)
        sortedPreIm:List NNI := sort currentPreIm
        if entry?(sortedPreIm,t1)
          then
            -- print (message " preImage: open set:=" << sortedPreIm << message " is in domain")
-           preImMap := concat(preImMap,qcoerce(position(sortedPreIm,t1)))
+           preImMap := cons(qcoerce(position(sortedPreIm,t1)),preImMap)
          else
            -- print (message " preImage: open set:=" << sortedPreIm << message " not in domain")
            return []
@@ -650,7 +636,7 @@ Homset(DOMAIN:TopoSpaceFinite,CODOMAIN:TopoSpaceFinite) : Exports == Impl where
        if not empty?(pm) then
          -- print (message "not empty")
          currentRep : Record(image:List NNI,preImage:List NNI) := [im,pm]
-         res := concat (res,currentRep)
+         res := cons(currentRep,res)
      res
 
    outputOneEntry(x : Record(image:List NNI,preImage:List NNI)) : OutputForm ==
