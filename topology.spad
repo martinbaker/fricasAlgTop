@@ -1,28 +1,26 @@
 -- to compile
 -- )co fricas/topology.spad
 --
--- To test out:
+-- To test:
 --
 -- test TopologyFinite
--- x := topologyFiniteLeftOrder(3)
--- y := topologyFiniteDiscrete(3)
--- product(x,y)
+-- y1 := topologyFiniteLeftOrder(3)
+-- y2 := topologyFiniteDiscrete(3)
+-- y3 := full2basis y2
+-- y4 := basis2full y3
+-- product(y1,y2)
 --
 -- test TopoSpaceFinite
--- topoSpaceFiniteTrivial(["a","b"])
--- topoSpaceFiniteDiscrete(["a","b","c"])
--- y := topologyFiniteLeftOrder(3)
--- y := topologyFiniteDiscrete(3)
--- full2basis y
--- basis2full y
--- x := topoSpaceFiniteLeftOrder(["a","b","c"])
--- y := topoSpaceFiniteLeftOrder(["d","e"])
--- product(x,y)
--- nerveConstruction(x)
+-- ts1 := topoSpaceFiniteTrivial(["a","b"]) $ TopoSpaceFinite Symbol
+-- ts2 := topoSpaceFiniteDiscrete(["a","b","c"]) $ TopoSpaceFinite Symbol
+-- ts3 := topoSpaceFiniteLeftOrder(["a","b","c"]) $ TopoSpaceFinite Symbol
+-- ts4 := topoSpaceFiniteLeftOrder(["d","e"]) $ TopoSpaceFinite Symbol
+-- product(ts3,ts4)
+-- nerveConstruction(ts3)
 --
 -- test maps
--- source := topoSpaceFiniteLeftOrder(["a","b","c"])
--- target := topoSpaceFiniteLeftOrder(["d","e"])
+-- source := topoSpaceFiniteLeftOrder(["a","b","c"]) $ TopoSpaceFinite Symbol
+-- target := topoSpaceFiniteLeftOrder(["d","e"]) $ TopoSpaceFinite Symbol
 -- map := continuousMap([1,2,2],[]) $ ContinuousMap(source,target)
 -- map := continuousMap([2,1,2],[]) $ ContinuousMap(source,target)
 --
@@ -294,7 +292,7 @@ TopologyFinite() : Exports == Impl where
 ++ References:
 ++   https://www.euclideanspace.com/prog/scratchpad/mycode/topology/finite/
 
-TopoSpaceFinite() : Exports == Impl where
+TopoSpaceFinite(S : SetCategory) : Exports == Impl where
   NNI==> NonNegativeInteger
   x<<y ==> hconcat(x::OutputForm, y::OutputForm)
 
@@ -326,13 +324,6 @@ TopoSpaceFinite() : Exports == Impl where
 
     getTopologyToList : (x : %) -> List List NNI
 
---    equivalenceRelation : (a : %,va : NNI,vb : NNI) -> OutputForm
-
-    intersection : (a:%, b:%) -> %
-
-    union : (a:%, b:%) -> %
-      ++ union with degenerates removed
-
     product : (a : %, b : %) -> %
       ++ The product topology is the coarsest topology (the topology
       ++ with the fewest open sets) which still has continuous projections
@@ -347,7 +338,7 @@ TopoSpaceFinite() : Exports == Impl where
   Impl ==> add
 
    -- A set and a topology on it.
-   Rep := Record(topSet : List Symbol, topol : TopologyFinite)
+   Rep := Record(topSet : List S, topol : TopologyFinite)
 
    getTopology(x : %) : TopologyFinite ==
      x.topol
@@ -356,10 +347,10 @@ TopoSpaceFinite() : Exports == Impl where
      getTopology(x.topol)
 
    -- constructor
-   topoSpaceFinite(a : List Symbol) : % ==
+   topoSpaceFinite(a : List S) : % ==
      [a,topologyFiniteTrivial()]
 
-   topoSpaceFiniteTrivial(x1 : List String) : % ==
+   if S is Symbol then topoSpaceFiniteTrivial(x1 : List String) : % ==
      [[a::Symbol for a in x1],topologyFiniteTrivial()]
 
    -- local function to add if new
@@ -369,92 +360,38 @@ TopoSpaceFinite() : Exports == Impl where
        if member?(sorted, lst) then return lst
        cons(sorted,lst)
 
-   -- generate discrete topology
-   genDiscreteTopology(lst : List(List(NNI)),level : NNI,
-       thisOpenSet : List(NNI), dim : NNI) : List(List(NNI)) ==
-     -- print(message "genDiscreteTopology(" << lst  << message ","
-     --  << level  << message "," << thisOpenSet  << message "," << dim << message ")")
-     top1:List List NNI := lst
-     for i in 1..dim repeat
-       openset1 : List NNI := [i]
-       if not member?(i,thisOpenSet) then
-         -- print(message "genDiscreteTopology not member(" << thisOpenSet  << message ","
-         --   << i  << message ")")
-         openset2 : List(NNI) := concat(thisOpenSet,openset1)
-         if (level+1)<dim then
-           top1 := genDiscreteTopology(top1,level+1,openset2,dim)
-         top1 := addIfNew(top1,openset2)
-     top1
-
-   topoSpaceFiniteDiscrete(x1 : List String) : % ==
+   if S is Symbol then topoSpaceFiniteDiscrete(x1 : List String) : % ==
      dim1:NNI := #x1
-     -- top1:List List NNI := empty
-     -- top1 := genDiscreteTopology(top1,1,empty,dim1)
      [[a::Symbol for a in x1],topologyFiniteDiscrete(dim1)]
 
    -- generate order topology
-   genOrderTopology(lst : List(List(NNI)),level : NNI,
-       thisOpenSet : List(NNI), dim : NNI) : List(List(NNI)) ==
-     -- print(message "genOrderTopology(" << lst  << message ","
-     --  << level  << message "," << thisOpenSet  << message "," << dim << message ")")
-     top1:List List NNI := lst
-     openset1:List NNI := []
-     for i in 1..dim repeat
-       -- print(message "genOrderTopology loop(" << top1  << message "," << i  << message ")")
-       openset1 := cons(i,openset1)
-       top1 := cons(openset1,top1)
-     top1
-
-   -- generate order topology
-   topoSpaceFiniteLeftOrder(x1 : List String) : % ==
+   if S is Symbol then topoSpaceFiniteLeftOrder(x1 : List String) : % ==
      dim1:NNI := #x1
-     -- top1:List List NNI := empty
-     -- top1 := genOrderTopology(top1,1,empty,dim1)
      [[a::Symbol for a in x1],topologyFiniteLeftOrder(dim1)]
-
-   symboliseList(topSet1 : List Symbol, topol1 : List NNI) : OutputForm ==
-     res:List OutputForm := empty
-     for a in topol1 repeat
-       val:OutputForm := ((topSet1.a)::OutputForm)
-       res := cons(val,res)
-     bracket (reverse res)
 
    -- display as symbols
    coerce(x : %) : OutputForm ==
-     x1:List Symbol := x.topSet
+     x1:List S := x.topSet
      topSet1:OutputForm := bracket[a::OutputForm for a in x1]
-     -- x2:List List NNI := (x.topol)::Rep
-     -- topol2:OutputForm := bracket[symboliseList(x1,a) for a in x2]
-     -- bracket[topSet1,topol2]
      bracket[topSet1,(x.topol)::OutputForm]
 
    "="(a:%,b:%) : Boolean ==
      a=b
 
-   -- intersection
-   intersection(a:%, b:%) : % ==
-     -- sort(setIntersection(a,b))
-     a
-
-   -- union with degenerates removed
-   union(a:%, b:%) : % ==
-     -- removeDuplicates!(merge("<",a,b))
-     a
-
    -- The product topology is the coarsest topology (the topology
    -- with the fewest open sets) which still has continuous projections
    -- to the input topologies.
    product(a : %, b : %) : % ==
-     a1:List Symbol := a.topSet
-     b1:List Symbol := b.topSet
+     a1:List S := a.topSet
+     b1:List S := b.topSet
      -- convert inputs to basis
      a2:TopologyFinite := full2basis(a.topol)
      b2:TopologyFinite := full2basis(b.topol)
      -- Cartesian product of sets
-     pairs:List(Record(left : Symbol, right : Symbol)) := empty
+     pairs:List(Record(left : S, right : S)) := empty
      for sa in a1 repeat
        for sb in b1 repeat
-         pair:Record(left : Symbol, right : Symbol) := [sa,sb]
+         pair:Record(left : S, right : S) := [sa,sb]
          pairs := cons(pair,pairs)
      print(message "points=" << pairs)
      topols:List(Record(tl : List(NNI), tr : List(NNI))) := empty
@@ -484,7 +421,7 @@ TopoSpaceFinite() : Exports == Impl where
 ++ References:
 ++   https://www.euclideanspace.com/prog/scratchpad/mycode/topology/finite/
 
-ContinuousMap(DOMAIN:TopoSpaceFinite,CODOMAIN:TopoSpaceFinite) : Exports == Impl where
+ContinuousMap(DOMAIN:TopoSpaceFinite(Symbol),CODOMAIN:TopoSpaceFinite(Symbol)) : Exports == Impl where
   NNI==> NonNegativeInteger
   x<<y ==> hconcat(x::OutputForm, y::OutputForm)
 
@@ -555,7 +492,7 @@ ContinuousMap(DOMAIN:TopoSpaceFinite,CODOMAIN:TopoSpaceFinite) : Exports == Impl
 ++ References:
 ++   https://www.euclideanspace.com/prog/scratchpad/mycode/topology/finite/
 
-Homset(DOMAIN:TopoSpaceFinite,CODOMAIN:TopoSpaceFinite) : Exports == Impl where
+Homset(DOMAIN:TopoSpaceFinite(Symbol),CODOMAIN:TopoSpaceFinite(Symbol)) : Exports == Impl where
   NNI==> NonNegativeInteger
   x<<y ==> hconcat(x::OutputForm, y::OutputForm)
 
