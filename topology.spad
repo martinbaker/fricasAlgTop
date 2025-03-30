@@ -92,6 +92,10 @@ TopologyFinite() : Exports == Impl where
       ++ The nerve construction is based on a cover of the set family
       ++ The resulting complex is a discrete representation of that cover.
 
+    powerSet : (j:NNI) -> List List NNI
+
+    findAllTopologiesOnSet : (s : List NNI) -> List %
+      ++ Given a set find a list of all possible topologies on that set
 
   Impl ==> add
 
@@ -283,6 +287,42 @@ TopologyFinite() : Exports == Impl where
      eles:List Integer := [x for x in 1..leng]
      top1:List List NNI := [members(a) for a in intersections]
      simplicialComplex(eles,top1)
+
+   localPowerSets(j:NNI): List(List(NNI)) ==
+     l: List List NNI := list []
+     j = 0 => l
+     Sm := localPowerSets((j-1)::NNI)
+     Sn: List List NNI := []
+     for x in Sm repeat Sn := cons(cons(j, x),Sn)
+     append(Sn, Sm)
+
+   gradeAndOrder(a:List NNI,b:List NNI) : Boolean ==
+     if #a < #b then return true
+     if #a > #b then return false
+     for ia in a for ib in b repeat
+       if ia < ib then return true
+       if ia > ib then return false
+     false
+
+   -- powerSet(j:NNI):List List NNI == map(reverse, localPowerSets j)
+   powerSet(j:NNI):List List NNI ==
+     res:List List NNI := sort(gradeAndOrder,localPowerSets j)
+     map(reverse,res)
+
+   -- Given a set, find a list of all possible topologies on that set
+   findAllTopologiesOnSet(s : List NNI) : List % ==
+     res:List % := [topologyFiniteTrivial()]
+     res := cons(topologyFiniteDiscrete(#s),res)
+     -- add elements of power set
+     ps:List List NNI := powerSet(#s)
+     for x in ps repeat
+       res := cons(topologyFinite [x],res)
+     -- add pairs of elements of singleton set
+     for y in s repeat
+       for z in s repeat
+         if not y=z then
+           res := cons(topologyFinite [[y],[z],[y,z]],res)
+     reverse res
 
 )abbrev domain TOPOSP TopoSpaceFinite
 ++ Author: Martin Baker
