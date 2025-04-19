@@ -86,15 +86,15 @@ TopologyFinite() : Exports == Impl where
 
     product : (a : %, b : %) -> %
 
+    powerSetGraded : (d:NNI,grade:NNI) -> List List NNI
+
     nerveConstruction : (a : %) -> FiniteSimplicialComplex(Integer)
       ++ A nerve construction creates a simplicial complex with the
       ++ topological properties of a given set family.
       ++ The nerve construction is based on a cover of the set family
       ++ The resulting complex is a discrete representation of that cover.
 
-    powerSet : (j:NNI) -> List List NNI
-
-    findAllTopologiesOnSet : (s : List NNI) -> List %
+    findAllTopologiesOnSet : (s : List NNI) -> List List List NNI
       ++ Given a set find a list of all possible topologies on that set
 
   Impl ==> add
@@ -288,41 +288,111 @@ TopologyFinite() : Exports == Impl where
      top1:List List NNI := [members(a) for a in intersections]
      simplicialComplex(eles,top1)
 
-   localPowerSets(j:NNI): List(List(NNI)) ==
-     l: List List NNI := list []
-     j = 0 => l
-     Sm := localPowerSets((j-1)::NNI)
-     Sn: List List NNI := []
-     for x in Sm repeat Sn := cons(cons(j, x),Sn)
-     append(Sn, Sm)
+   subset(li:List NNI, n:NNI) : List NNI ==
+     [x for x in li for i in 0..#li-1 | bit?(n, i)]
 
-   gradeAndOrder(a:List NNI,b:List NNI) : Boolean ==
-     if #a < #b then return true
-     if #a > #b then return false
-     for ia in a for ib in b repeat
-       if ia < ib then return true
-       if ia > ib then return false
-     false
+   powerSet(s:List NNI) : List List NNI ==
+     empty? s => [s]
+     concat(p:=powerSet(rest s),[cons(first s,x) for x in p])
 
-   -- powerSet(j:NNI):List List NNI == map(reverse, localPowerSets j)
-   powerSet(j:NNI):List List NNI ==
-     res:List List NNI := sort(gradeAndOrder,localPowerSets j)
-     map(reverse,res)
+   powerSetOfLists(s:List List NNI) : List List List NNI ==
+     empty? s => [s]
+     -- print(message "powerSetOfLists=" << s )
+     p:=powerSetOfLists(rest s)
+     concat(p,[cons(first s,x) for x in p])
+
+   powerSetGraded(d:NNI,grade:NNI) : List List NNI ==
+     d<1 => []
+     s:List NNI := [r for r in 1..d]
+     unsorted:List List NNI := concat(p:=powerSet(rest s),[cons(first s,x) for x in p])
+     [y for y in reverse unsorted | (#y) = grade]
+
+   grade(s:List List NNI,x:NNI) : List List NNI ==
+     empty? s => s
+     reverse [os for os in s | #os=x]
+
+   listMeet(os:List NNI,os2:List NNI) : List NNI ==
+     res: List NNI := []
+     for e in os repeat
+       for e2 in os2 repeat
+         if e=e2 then res:=cons(e,res)
+     sort res
+
+   noInvalid(baseTopol : List List NNI,openSets : List List NNI) : Boolean ==
+     for a in openSets repeat
+       for b in openSets repeat
+         osMeet:List NNI := listMeet(a,b)
+         if entry?(osMeet,baseTopol) then return false
+     true
+
+   -- Parameter 'baseTopol' should contain one 'potential topology' with
+   -- only upto 'degree-1' open sets.
+   -- Returns all potential topologies with the original open sets plus valid 'degree' open sets.
+   -- degree 1 contains combinations of open sets like [1] , [2] etc.
+   -- degree 2 contains combinations of open sets like [1,2] , [2,3] etc. + degree 1 open sets.
+   -- and so on.
+   -- Here 'potential topology' means a lattice with all meets but not yet all joins.
+   addOpenSet(baseTopol : List List NNI,degree:NNI,maxDegree:NNI) : List List List NNI ==
+     -- 'mustContainOpenSets' will contain open sets of 'degree' which are required for
+     -- this base topology because all meets are required.
+     mustContainOpenSets : List List NNI := []
+     i:NNI := 0
+     for x in baseTopol repeat
+       i:=i+1
+       i2:NNI := 0
+       for y in baseTopol repeat
+         i2:=i2+1
+         if i2>i then
+           osMeet:List NNI := listMeet(x,y)
+           if not (empty? osMeet)
+             then mustContainOpenSets := cons(osMeet,mustContainOpenSets)
+     -- 'mayContainOpenSets' will contain open sets of 'degree' which are optional unless ruled out
+     mayContainOpenSets : List List NNI :=
+       [m for m in powerSetGraded(maxDegree,degree) | not entry?(m,mustContainOpenSets)]
+     -- combinationsForThisDegree holds all optional open set combinations at this grade
+     c : List List List NNI := powerSetOfLists(mayContainOpenSets)
+     combinationsForThisDegree: List List List NNI := [concat(opt,mustContainOpenSets) for opt in c]
+     -- 'cannotContainOpenSetsA' and 'cannotContainOpenSetsB' will contain pairs of open sets of
+     -- 'degree' which are invalid for this base topology because all joins are required.
+     cannotContainOpenSetsA : List List NNI := []
+     cannotContainOpenSetsB : List List NNI := []
+     -- openSetsForThisDegree will contain all open sets of this 'degree'
+     -- openSetsForThisDegree : List List NNI := powerSetGraded(maxDegree,degree)
+     -- validCombinations holds the subset of combinationsForThisDegree which can be added to this base topology
+     -- now determine which ones are required
+     combinationsWithoutInvalid: List List List NNI := []
+     for openSets in combinationsForThisDegree repeat
+       if noInvalid(baseTopol,openSets) then
+         combinationsWithoutInvalid := cons(openSets,combinationsWithoutInvalid)
+     print(message "addOpenSet* baseTopol=" << baseTopol << message " degree=" << degree <<
+       message " maxDegree=" << maxDegree << message " mustContainOpenSets=" <<  mustContainOpenSets <<
+       message " mayContainOpenSets=" <<  mayContainOpenSets << message " combinationsWithoutInvalid=" <<
+       combinationsWithoutInvalid)
+     combinationsWithoutInvalid
+
+   -- parameter 's' is all potential topologies containing only upto 'degree-1' open sets.
+   -- degree 1 contains combinations of open sets like [1] , [2] etc.
+   -- degree 2 contains combinations of open sets like [1,2] , [2,3] etc. with degree 1
+   -- and so on.
+   addHigherOrderSets(s : List List List NNI,degree:NNI,maxDegree:NNI) : List List List NNI ==
+     -- print(message "addHigherOrderSets=" << s << message " degree=" << degree << message " maxDegree=" << maxDegree)
+     if degree >= maxDegree then return s
+     s2:List List List NNI := []
+     for os in s repeat
+       os2 := addOpenSet(os,degree,maxDegree)
+       s2 := concat(os2,s2)
+       print(message "addHigherOrderSets os2=" << os2 << message " s2=" << s2)
+     s2
 
    -- Given a set, find a list of all possible topologies on that set
-   findAllTopologiesOnSet(s : List NNI) : List % ==
-     res:List % := [topologyFiniteTrivial()]
-     res := cons(topologyFiniteDiscrete(#s),res)
-     -- add elements of power set
-     ps:List List NNI := powerSet(#s)
-     for x in ps repeat
-       res := cons(topologyFinite [x],res)
-     -- add pairs of elements of singleton set
-     for y in s repeat
-       for z in s repeat
-         if not y=z then
-           res := cons(topologyFinite [[y],[z],[y,z]],res)
-     reverse res
+   findAllTopologiesOnSet(s : List NNI) : List List List NNI ==
+     dim:NNI := #s
+     if dim=0 then return [[[]]]
+     if dim=1 then return [[[],s]]
+     -- singletons contains all combinations of open sets with one element
+     singletons : List List List NNI := powerSetOfLists(powerSetGraded(dim,1))
+     addHigherOrderSets(singletons,2,dim)
+
 
 )abbrev domain TOPOSP TopoSpaceFinite
 ++ Author: Martin Baker
@@ -624,3 +694,34 @@ Homset(DOMAIN:TopoSpaceFinite(Symbol),CODOMAIN:TopoSpaceFinite(Symbol)) : Export
 
    coerce(x : %) : OutputForm ==
      message "homset" << bracket[outputOneEntry(a) for a in x]
+
+--Copyright (c) 2025, Martin J Baker.
+--All rights reserved.
+--
+--Redistribution and use in source and binary forms, with or without
+--modification, are permitted provided that the following conditions are
+--met:
+--
+--    - Redistributions of source code must retain the above copyright
+--      notice, this list of conditions and the following disclaimer.
+--
+--    - Redistributions in binary form must reproduce the above copyright
+--      notice, this list of conditions and the following disclaimer in
+--      the documentation and/or other materials provided with the
+--      distribution.
+--
+--    - Neither the name of Martin J Baker. nor the
+--      names of its contributors may be used to endorse or promote products
+--      derived from this software without specific prior written permission.
+--
+--THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+--IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+--TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+--PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
+--OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+--EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+--PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+--PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+--LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+--NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+--SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
