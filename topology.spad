@@ -316,13 +316,28 @@ TopologyFinite() : Exports == Impl where
      for e in os repeat
        for e2 in os2 repeat
          if e=e2 then res:=cons(e,res)
-     sort res
+     res
 
+   listJoin(os:List NNI,os2:List NNI) : List NNI ==
+     res: List NNI := []
+     for e in os repeat
+       if not entry?(e,res) then res:=cons(e,res)
+     for e in os2 repeat
+       if not entry?(e,res) then res:=cons(e,res)
+     res
+
+   -- if the meet of any two openSets is not equal to any open set in the base topology
+   -- then the topology is not valid so return false
    noInvalid(baseTopol : List List NNI,openSets : List List NNI) : Boolean ==
+     i:NNI := 0
      for a in openSets repeat
+       i:=i+1
+       i2:NNI := 0
        for b in openSets repeat
-         osMeet:List NNI := listMeet(a,b)
-         if entry?(osMeet,baseTopol) then return false
+         i2:=i2+1
+         if i2>i then
+           osMeet:List NNI := sort listMeet(a,b)
+           if not entry?(osMeet,baseTopol) then return false
      true
 
    -- Parameter 'baseTopol' should contain one 'potential topology' with
@@ -334,7 +349,7 @@ TopologyFinite() : Exports == Impl where
    -- Here 'potential topology' means a lattice with all meets but not yet all joins.
    addOpenSet(baseTopol : List List NNI,degree:NNI,maxDegree:NNI) : List List List NNI ==
      -- 'mustContainOpenSets' will contain open sets of 'degree' which are required for
-     -- this base topology because all meets are required.
+     -- this base topology because all joins are required.
      mustContainOpenSets : List List NNI := []
      i:NNI := 0
      for x in baseTopol repeat
@@ -343,32 +358,32 @@ TopologyFinite() : Exports == Impl where
        for y in baseTopol repeat
          i2:=i2+1
          if i2>i then
-           osMeet:List NNI := listMeet(x,y)
-           if not (empty? osMeet)
-             then mustContainOpenSets := cons(osMeet,mustContainOpenSets)
+           osJoin:List NNI := listJoin(x,y)
+           if not (empty? osJoin) then
+             j: List NNI := sort osJoin
+             if not entry?(j,mustContainOpenSets) then
+               mustContainOpenSets := cons(j,mustContainOpenSets)
      -- 'mayContainOpenSets' will contain open sets of 'degree' which are optional unless ruled out
      mayContainOpenSets : List List NNI :=
        [m for m in powerSetGraded(maxDegree,degree) | not entry?(m,mustContainOpenSets)]
      -- combinationsForThisDegree holds all optional open set combinations at this grade
      c : List List List NNI := powerSetOfLists(mayContainOpenSets)
      combinationsForThisDegree: List List List NNI := [concat(opt,mustContainOpenSets) for opt in c]
-     -- 'cannotContainOpenSetsA' and 'cannotContainOpenSetsB' will contain pairs of open sets of
-     -- 'degree' which are invalid for this base topology because all joins are required.
-     cannotContainOpenSetsA : List List NNI := []
-     cannotContainOpenSetsB : List List NNI := []
-     -- openSetsForThisDegree will contain all open sets of this 'degree'
-     -- openSetsForThisDegree : List List NNI := powerSetGraded(maxDegree,degree)
-     -- validCombinations holds the subset of combinationsForThisDegree which can be added to this base topology
-     -- now determine which ones are required
+     -- some open sets are invalid because of meet requirement
      combinationsWithoutInvalid: List List List NNI := []
      for openSets in combinationsForThisDegree repeat
        if noInvalid(baseTopol,openSets) then
          combinationsWithoutInvalid := cons(openSets,combinationsWithoutInvalid)
-     print(message "addOpenSet* baseTopol=" << baseTopol << message " degree=" << degree <<
-       message " maxDegree=" << maxDegree << message " mustContainOpenSets=" <<  mustContainOpenSets <<
-       message " mayContainOpenSets=" <<  mayContainOpenSets << message " combinationsWithoutInvalid=" <<
-       combinationsWithoutInvalid)
-     combinationsWithoutInvalid
+     combinationsWithBase: List List List NNI := []
+     -- add base topology to each open set
+     for openSets in combinationsWithoutInvalid repeat
+       combinationsWithBase := cons(concat(baseTopol,openSets),combinationsWithBase)
+     -- print(message "addOpenSet* baseTopol=" << baseTopol << message " degree=" << degree <<
+     --  message " maxDegree=" << maxDegree << message " mustContainOpenSets=" << mustContainOpenSets <<
+     --  message " mayContainOpenSets=" << mayContainOpenSets << message " combinationsForThisDegree=" <<
+     --  combinationsForThisDegree << message " combinationsWithoutInvalid=" <<
+     --  combinationsWithoutInvalid << message " combinationsWithBase=" << combinationsWithBase)
+     combinationsWithBase
 
    -- parameter 's' is all potential topologies containing only upto 'degree-1' open sets.
    -- degree 1 contains combinations of open sets like [1] , [2] etc.
@@ -381,8 +396,8 @@ TopologyFinite() : Exports == Impl where
      for os in s repeat
        os2 := addOpenSet(os,degree,maxDegree)
        s2 := concat(os2,s2)
-       print(message "addHigherOrderSets os2=" << os2 << message " s2=" << s2)
-     s2
+       -- print(message "addHigherOrderSets os2=" << os2 << message " s2=" << s2)
+     addHigherOrderSets(s2,degree+1,maxDegree)
 
    -- Given a set, find a list of all possible topologies on that set
    findAllTopologiesOnSet(s : List NNI) : List List List NNI ==
