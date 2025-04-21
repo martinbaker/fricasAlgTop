@@ -1,5 +1,7 @@
 -- to compile
 -- )co fricas/topology.spad
+-- )set output length 245
+-- findAllTopologiesOnSet [1,2,3,4]
 --
 -- To test:
 --
@@ -94,7 +96,7 @@ TopologyFinite() : Exports == Impl where
       ++ The nerve construction is based on a cover of the set family
       ++ The resulting complex is a discrete representation of that cover.
 
-    findAllTopologiesOnSet : (s : List NNI) -> List List List NNI
+    findAllTopologiesOnSet : (s : List NNI) -> NNI -- List List List NNI
       ++ Given a set find a list of all possible topologies on that set
 
   Impl ==> add
@@ -129,8 +131,6 @@ TopologyFinite() : Exports == Impl where
    -- generate discrete topology
    genDiscreteTopology(lst : List(List(NNI)),level : NNI,
        thisOpenSet : List(NNI), dim : NNI) : List(List(NNI)) ==
-     -- print(message "genDiscreteTopology(" << lst  << message ","
-     --  << level  << message "," << thisOpenSet  << message "," << dim << message ")")
      top1:List List NNI := lst
      for i in 1..dim repeat
        openset1 : List NNI := [i]
@@ -151,12 +151,9 @@ TopologyFinite() : Exports == Impl where
    -- generate order topology
    genOrderTopology(lst : List(List(NNI)),level : NNI,
        thisOpenSet : List(NNI), dim : NNI) : List(List(NNI)) ==
-     -- print(message "genOrderTopology(" << lst  << message ","
-     --  << level  << message "," << thisOpenSet  << message "," << dim << message ")")
      top1:List List NNI := lst
      openset1:List NNI := []
      for i in 1..dim repeat
-       -- print(message "genOrderTopology loop(" << top1  << message "," << i  << message ")")
        openset1 := cons(i,openset1)
        top1 := cons(openset1,top1)
      reverse top1
@@ -186,8 +183,6 @@ TopologyFinite() : Exports == Impl where
          currSize:NNI := #currOpenSet
          if member?(currEle,currOpenSet) and not empty?(currOpenSet) and
           (minSize=0 or currSize < minSize) then
-            --print(message "adding" << currOpenSet  << message " minSize="
-            --  << minSize << message " currEle=" << currEle)
             basisCandidate := currOpenSet
             minSize := #currOpenSet
        basisSets := addIfNew(basisSets,basisCandidate)
@@ -207,8 +202,6 @@ TopologyFinite() : Exports == Impl where
        for y in top1 repeat
          z : List NNI := sort (unionLocal(x,y))
          top2 := addIfNew(top2,z)
-         -- print(message "x=" << x  << message " y="
-         --  << y << message " union=" << z)
      [false,setTopologyFromList(top2)]
 
    -- display
@@ -278,9 +271,6 @@ TopologyFinite() : Exports == Impl where
        for y in top1 repeat
          intersec:(Set NNI) := intersect(x,y)
          intersections := addIfNew2(intersections,intersec)
-         -- print(message "x=" << x  << message " y="
-         --    << y << message " intersec=" << intersec)
-     -- print(message "intersections=" << intersections )
      -- Add a vertex for each element in the cover.
      -- Add an edge between two vertices if the corresponding sets overlap.
      leng:NNI := #intersections
@@ -297,7 +287,6 @@ TopologyFinite() : Exports == Impl where
 
    powerSetOfLists(s:List List NNI) : List List List NNI ==
      empty? s => [s]
-     -- print(message "powerSetOfLists=" << s )
      p:=powerSetOfLists(rest s)
      concat(p,[cons(first s,x) for x in p])
 
@@ -316,7 +305,8 @@ TopologyFinite() : Exports == Impl where
      for e in os repeat
        for e2 in os2 repeat
          if e=e2 then res:=cons(e,res)
-     res
+     if empty? res then return res
+     sort res
 
    listJoin(os:List NNI,os2:List NNI) : List NNI ==
      res: List NNI := []
@@ -324,10 +314,14 @@ TopologyFinite() : Exports == Impl where
        if not entry?(e,res) then res:=cons(e,res)
      for e in os2 repeat
        if not entry?(e,res) then res:=cons(e,res)
-     res
+     if empty? res then return res
+     sort res
 
    -- if the meet of any two openSets is not equal to any open set in the base topology
    -- then the topology is not valid so return false
+   -- parameter baseTopol contains combinations of 'degree-1' open sets
+   -- parameter openSets contains a potential combination of 'degree' open sets
+   -- example baseTopol is [], openSets is [1,2],[3,4] should return true
    noInvalid(baseTopol : List List NNI,openSets : List List NNI) : Boolean ==
      i:NNI := 0
      for a in openSets repeat
@@ -336,11 +330,12 @@ TopologyFinite() : Exports == Impl where
        for b in openSets repeat
          i2:=i2+1
          if i2>i then
-           osMeet:List NNI := sort listMeet(a,b)
-           if not entry?(osMeet,baseTopol) then return false
+           osMeet:List NNI := listMeet(a,b)
+           if not osMeet=[] then
+             if not entry?(osMeet,baseTopol) then return false
      true
 
-   -- Parameter 'baseTopol' should contain one 'potential topology' with
+   -- When called parameter 'baseTopol' should contain one 'potential topology' with
    -- only upto 'degree-1' open sets.
    -- Returns all potential topologies with the original open sets plus valid 'degree' open sets.
    -- degree 1 contains combinations of open sets like [1] , [2] etc.
@@ -359,54 +354,55 @@ TopologyFinite() : Exports == Impl where
          i2:=i2+1
          if i2>i then
            osJoin:List NNI := listJoin(x,y)
-           if not (empty? osJoin) then
-             j: List NNI := sort osJoin
-             if not entry?(j,mustContainOpenSets) then
-               mustContainOpenSets := cons(j,mustContainOpenSets)
+           -- if not (empty? osJoin) then
+           if #osJoin = degree then
+             if not entry?(osJoin,mustContainOpenSets) then
+               mustContainOpenSets := cons(osJoin,mustContainOpenSets)
      -- 'mayContainOpenSets' will contain open sets of 'degree' which are optional unless ruled out
      mayContainOpenSets : List List NNI :=
        [m for m in powerSetGraded(maxDegree,degree) | not entry?(m,mustContainOpenSets)]
-     -- combinationsForThisDegree holds all optional open set combinations at this grade
-     c : List List List NNI := powerSetOfLists(mayContainOpenSets)
-     combinationsForThisDegree: List List List NNI := [concat(opt,mustContainOpenSets) for opt in c]
+     -- check what happens when mayContainOpenSets = []
+     if mayContainOpenSets = [] then
+       return [concat(baseTopol,mustContainOpenSets)]
+     -- combWithMust holds all optional open set combinations at this grade
+     combWithoutMust : List List List NNI := powerSetOfLists(mayContainOpenSets)
+     combWithMust: List List List NNI := if empty?(mustContainOpenSets)
+       then [opt for opt in combWithoutMust | opt ~= []]
+       else [concat(opt,mustContainOpenSets) for opt in combWithoutMust]
      -- some open sets are invalid because of meet requirement
-     combinationsWithoutInvalid: List List List NNI := []
-     for openSets in combinationsForThisDegree repeat
+     combWithoutInvalid: List List List NNI := []
+     for openSets in combWithMust repeat
        if noInvalid(baseTopol,openSets) then
-         combinationsWithoutInvalid := cons(openSets,combinationsWithoutInvalid)
-     combinationsWithBase: List List List NNI := []
+         combWithoutInvalid := cons(openSets,combWithoutInvalid)
+     combWithBase: List List List NNI := []
      -- add base topology to each open set
-     for openSets in combinationsWithoutInvalid repeat
-       combinationsWithBase := cons(concat(baseTopol,openSets),combinationsWithBase)
-     -- print(message "addOpenSet* baseTopol=" << baseTopol << message " degree=" << degree <<
-     --  message " maxDegree=" << maxDegree << message " mustContainOpenSets=" << mustContainOpenSets <<
-     --  message " mayContainOpenSets=" << mayContainOpenSets << message " combinationsForThisDegree=" <<
-     --  combinationsForThisDegree << message " combinationsWithoutInvalid=" <<
-     --  combinationsWithoutInvalid << message " combinationsWithBase=" << combinationsWithBase)
-     combinationsWithBase
+     for openSets in combWithoutInvalid repeat
+       combWithBase := cons(concat(baseTopol,openSets),combWithBase)
+     combWithBase
 
+   -- Given all potential topologies containing upto 'degree-1' open sets add
+   -- 'degree' open sets then call recursivly until we get to 'maxDegree'.
    -- parameter 's' is all potential topologies containing only upto 'degree-1' open sets.
    -- degree 1 contains combinations of open sets like [1] , [2] etc.
    -- degree 2 contains combinations of open sets like [1,2] , [2,3] etc. with degree 1
    -- and so on.
    addHigherOrderSets(s : List List List NNI,degree:NNI,maxDegree:NNI) : List List List NNI ==
-     -- print(message "addHigherOrderSets=" << s << message " degree=" << degree << message " maxDegree=" << maxDegree)
      if degree >= maxDegree then return s
      s2:List List List NNI := []
      for os in s repeat
        os2 := addOpenSet(os,degree,maxDegree)
        s2 := concat(os2,s2)
-       -- print(message "addHigherOrderSets os2=" << os2 << message " s2=" << s2)
      addHigherOrderSets(s2,degree+1,maxDegree)
 
    -- Given a set, find a list of all possible topologies on that set
-   findAllTopologiesOnSet(s : List NNI) : List List List NNI ==
+   findAllTopologiesOnSet(s : List NNI) : NNI == -- List List List NNI ==
      dim:NNI := #s
-     if dim=0 then return [[[]]]
-     if dim=1 then return [[[],s]]
+     if dim=0 then return 0 -- [[[]]]
+     if dim=1 then return 2 -- [[[],s]]
      -- singletons contains all combinations of open sets with one element
      singletons : List List List NNI := powerSetOfLists(powerSetGraded(dim,1))
-     addHigherOrderSets(singletons,2,dim)
+     r:List List List NNI := addHigherOrderSets(singletons,2,dim)
+     #r
 
 
 )abbrev domain TOPOSP TopoSpaceFinite
@@ -518,13 +514,11 @@ TopoSpaceFinite(S : SetCategory) : Exports == Impl where
        for sb in b1 repeat
          pair:Record(left : S, right : S) := [sa,sb]
          pairs := cons(pair,pairs)
-     print(message "points=" << pairs)
      topols:List(Record(tl : List(NNI), tr : List(NNI))) := empty
      for ta in getTopology(a2) repeat
        for tb in getTopology(b2) repeat
          topol:Record(tl : List(NNI), tr : List(NNI)) := [ta,tb]
          topols := cons(topol,topols)
-     print(message "topols=" << topols)
      [a1,a2]
 
    -- https://sauln.github.io/blog/towers-nerves/
@@ -573,7 +567,6 @@ ContinuousMap(DOMAIN:TopoSpaceFinite(Symbol),CODOMAIN:TopoSpaceFinite(Symbol)) :
    continuousMap(im:List NNI) : % ==
      t1 :List List NNI := getTopologyToList(DOMAIN)
      t2 :List List NNI := getTopologyToList(CODOMAIN)
-     -- print (message "top in=" << t1 << message " top out=" << t2 << message " im=" << im)
      preImMap:List NNI := []
      -- for every open set in the codomain
      for os in t2 repeat
@@ -583,14 +576,11 @@ ContinuousMap(DOMAIN:TopoSpaceFinite(Symbol),CODOMAIN:TopoSpaceFinite(Symbol)) :
          if member?(p,os) then
            if not member?(i,currentPreIm) then
              currentPreIm := cons(i,currentPreIm)
-       -- print (message "  os=" << os << message " preIm=" << currentPreIm)
        sortedPreIm:List NNI := sort currentPreIm
        if entry?(sortedPreIm,t1)
          then
-           -- print (message " open set:=" << sortedPreIm << message " is in domain")
            preImMap := cons(qcoerce(position(sortedPreIm,t1)),preImMap)
          else
-           print (message " open set:=" << sortedPreIm << message " not in domain")
            error "invalid continuous map"
      [im,preImMap]
 
@@ -651,8 +641,6 @@ Homset(DOMAIN:TopoSpaceFinite(Symbol),CODOMAIN:TopoSpaceFinite(Symbol)) : Export
      currentCodomain:NNI := 1
      im:List NNI := [1 for ignore in 1..maxDomain]
      res: List List NNI := [copy im]
-     -- print (message "allMaps1 im:" << im << message " currentDomain:" << currentDomain <<
-     --   message " currentCodomain:" <<  currentCodomain)
      while true repeat
        im := incrementImage(im,1,maxCodomain,maxDomain)
        if empty?(im) then return res
@@ -662,7 +650,6 @@ Homset(DOMAIN:TopoSpaceFinite(Symbol),CODOMAIN:TopoSpaceFinite(Symbol)) : Export
    preImageFromImage(im:List NNI) : List NNI ==
      t1 :List List NNI := getTopologyToList(DOMAIN)
      t2 :List List NNI := getTopologyToList(CODOMAIN)
-     -- print (message "preImage: top in=" << t1 << message " top out=" << t2 << message " im=" << im)
      preImMap:List NNI := []
      -- for every open set in the codomain
      for os in t2 repeat
@@ -672,14 +659,11 @@ Homset(DOMAIN:TopoSpaceFinite(Symbol),CODOMAIN:TopoSpaceFinite(Symbol)) : Export
          if member?(p,os) then
            if not member?(i,currentPreIm) then
              currentPreIm := cons(i,currentPreIm)
-       -- print (message "  preImage: os=" << os << message " preIm=" << currentPreIm)
        sortedPreIm:List NNI := sort currentPreIm
        if entry?(sortedPreIm,t1)
          then
-           -- print (message " preImage: open set:=" << sortedPreIm << message " is in domain")
            preImMap := cons(qcoerce(position(sortedPreIm,t1)),preImMap)
          else
-           -- print (message " preImage: open set:=" << sortedPreIm << message " not in domain")
            return []
      preImMap
 
@@ -687,16 +671,11 @@ Homset(DOMAIN:TopoSpaceFinite(Symbol),CODOMAIN:TopoSpaceFinite(Symbol)) : Export
    homset() : % ==
      maxDomain:NNI := #getTopologyToList(DOMAIN) -- number of points in domain
      maxCodomain:NNI := #getTopologyToList(CODOMAIN) -- number of points in codomain
-     -- print (message "homset: domain=" << getTopologyToList(DOMAIN) << message " size=" << #getTopologyToList(DOMAIN))
-     -- print (message "homset: codomain=" << getTopologyToList(CODOMAIN) << message " size=" << #getTopologyToList(CODOMAIN))
      all : List List NNI := allMaps(maxDomain,maxCodomain)
-     -- print (message "homset: all=" << all)
      res : List Record(image:List NNI,preImage:List NNI) := []
      for im in all repeat
        pm : List NNI := preImageFromImage(im)
-       -- print (message " next image:" << im << message " preimage:" << pm)
        if not empty?(pm) then
-         -- print (message "not empty")
          currentRep : Record(image:List NNI,preImage:List NNI) := [im,pm]
          res := cons(currentRep,res)
      res
