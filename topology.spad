@@ -2,6 +2,7 @@
 -- )co fricas/topology.spad
 -- )set output length 245
 -- allTopologiesOnSet [1,2,3,4]
+-- validateTopologyList(allTopologiesOnSet [1,2,3,4],4)
 --
 -- To test:
 --
@@ -70,6 +71,10 @@ TopologyFinite() : Exports == Impl where
     validateTopology : (a:%,maxDegree:NNI) -> Boolean
       ++ check this topology has all meets and joins
 
+    validateTopologyList : (a:List %,maxDegree:NNI) -> Boolean
+      ++ check this topology has all meets and joins
+      ++ also check for duplicates
+
     getTopology : (a:%) -> List List NNI
       ++ returns open sets as list of list
 
@@ -103,10 +108,9 @@ TopologyFinite() : Exports == Impl where
       ++ The nerve construction is based on a cover of the set family
       ++ The resulting complex is a discrete representation of that cover.
 
-    testValidTopol : (thisDegree:List List NNI,
-                      lowerDegree:List List NNI,
-                      allDegree:List List NNI) -> Boolean
-    allTopologiesOnSet : (s : List NNI) -> List List List NNI
+    testValidTopol : (allDegree:List List NNI,degree:NNI) -> Boolean
+
+    allTopologiesOnSet : (s : List NNI) -> List %
       ++ Given a set construct a list of all possible topologies on that set
 
     countAllTopologiesOnSet : (s : List NNI) -> NNI
@@ -196,8 +200,22 @@ TopologyFinite() : Exports == Impl where
          join:Set NNI := union(os1,os2)
          meet:Set NNI := intersect(os1,os2)
          if not empty?(meet) then
-           if not member?(meet,top1) then return false
+           if not member?(meet,top1) then
+             print(message "validateTopology invalid:" << top1)
+             print(message " os1=" << os1 << message " os2=" << os2)
+             print(message " meet=" << meet)
+             return false
      true
+
+   -- check this topology has all meets and joins
+   -- also check for duplicates
+   validateTopologyList(a:List %,maxDegree:NNI) : Boolean ==
+     for topol in a repeat
+       if not validateTopology(topol,maxDegree) then
+         print(message "validateTopologyList invalid:" << topol)
+         return false
+     true
+
 
    -- To find a basis: for every element of the set find the smallest
    -- open set that contains it.
@@ -376,35 +394,22 @@ TopologyFinite() : Exports == Impl where
    -- and so on.
    -- Even if this returns 'true' there may be higher degree open sets still required.
    -- (only checks downward)
-   -- parameter 'thisDegree' holds a possible combination of open sets for this degree
    -- parameter 'allDegree' holds a possible topology which is valid upto the degree below
    -- returns true if these are compatible
-   testValidTopol(thisDegree:List List NNI,
-                  lowerDegree:List List NNI,
-                  allDegree:List List NNI) : Boolean ==
-     -- calculate join of every pair of open sets in 'lowerDegree'.
-     -- this join is required in concat(thisDegree,allDegree) because all joins
-     -- are required for a valid topology.
-     for x in lowerDegree for i in 1.. repeat
-       for y in lowerDegree for i2 in 1.. repeat
+   testValidTopol(allDegree:List List NNI,
+                  degree:NNI) : Boolean ==
+     -- For a valid topology all joins and meets must exist
+     for x in allDegree for i in 1.. repeat
+       for y in allDegree for i2 in 1.. repeat
          if i2>i then
            osJoin:List NNI := listJoin(x,y)
-           if not entry?(osJoin,allDegree) then
-             --print(message "testValidTopol not valid join lowerDegree=" << lowerDegree <<
-             --  message " allDegree=" << allDegree << message " osJoin=" << osJoin)
-             return false
-     for x in thisDegree for i in 1.. repeat
-       for y in thisDegree for i2 in 1.. repeat
-         if i2>i then
+           if #osJoin <= degree then -- can only check upto this degree
+             if not entry?(osJoin,allDegree) then
+               return false
            osMeet:List NNI := listMeet(x,y)
            if not osMeet=[] then
              if not entry?(osMeet,allDegree) then
-               --print(message "testValidTopol not valid meet thisDegree=" << thisDegree <<
-               --  message " allDegree=" << allDegree << message " osMeet=" << osMeet)
                return false
-     --print(message "testValidTopol valid thisDegree=" << thisDegree <<
-     --      message " lowerDegree=" << lowerDegree <<
-     --      message " allDegree=" << allDegree)
      true
 
    -- Given all potential topologies containing upto 'degree-1' open sets add
@@ -413,13 +418,13 @@ TopologyFinite() : Exports == Impl where
    -- degree 1 (singletons) contains combinations of open sets like [[1],[2]] etc.
    -- degree 2 contains combinations of open sets like [[1,2],[2,3]] etc. with degree 1
    -- and so on.
-   allTopologiesRecursive(thisDegree : List List NNI,
-                          allDegree : List List NNI,
-                          degree:NNI,maxDegree:NNI) : List List List NNI ==
-     degree = maxDegree => [allDegree] -- only at top degree are we sure we have valid topology
+   allTopologiesRecursive(allDegree : List List NNI,
+                          degree:NNI,maxDegree:NNI) : List % ==
+     degree = maxDegree => [topologyFinite allDegree]
+     -- only at top degree are we sure we have valid topology
      -- 'thisLevel' will hold all possible combinations of open sets for this degree
      thisLevel:List List List NNI := kFromNCombComb(degree,maxDegree)
-     allValidTopol:List List List NNI := []
+     allValidTopol:List % := []
      for topolAtLevel in thisLevel repeat
        allDegreeSoFar : List List NNI :=
          if topolAtLevel=[[]]
@@ -428,21 +433,20 @@ TopologyFinite() : Exports == Impl where
              if allDegree=[[]]
                then topolAtLevel
                else concat(topolAtLevel,allDegree);
-       if testValidTopol(topolAtLevel,thisDegree,allDegreeSoFar) then
-         validTopol : List List List NNI :=
-           allTopologiesRecursive(topolAtLevel,
-                          allDegreeSoFar,
+       if testValidTopol(allDegreeSoFar,degree) then
+         validTopol : List % :=
+           allTopologiesRecursive(allDegreeSoFar,
                           degree+1,maxDegree)
          allValidTopol := concat(validTopol,allValidTopol)
      allValidTopol
 
    -- Given a set, construct a list of all possible topologies on that set
-   allTopologiesOnSet(s : List NNI) : List List List NNI ==
+   allTopologiesOnSet(s : List NNI) : List % ==
      dim:NNI := #s
-     if dim=0 then return [[[]]]
-     if dim=1 then return [cons([[]],[s])]
+     if dim=0 then return [topologyFinite [[]]]
+     if dim=1 then return [topologyFinite cons([[]],[s])]
      -- start with degree 0, an empty open set
-     allTopologiesRecursive([[]],[[]],1,dim)
+     allTopologiesRecursive([[]],1,dim)
 
    -- Given a set, count all possible topologies on that set
    countAllTopologiesOnSet(s : List NNI) : NNI ==
@@ -450,7 +454,7 @@ TopologyFinite() : Exports == Impl where
      if dim=0 then return 0
      if dim=1 then return 2
      -- start with degree 0, an empty open set
-     #allTopologiesRecursive([[]],[[]],1,dim)
+     #allTopologiesRecursive([[]],1,dim)
 
 )abbrev domain TOPOSP TopoSpaceFinite
 ++ Author: Martin Baker
