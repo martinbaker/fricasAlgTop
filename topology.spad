@@ -1,10 +1,14 @@
 -- to compile
+-- To run this code on FriCAS first install and run the  FriCAS code as described on
+-- https://fricas.sourceforge.net/download.html
+-- Then compile this code:
 -- )co fricas/topology.spad
+--
+-- Here are some things to test the code:
+--
 -- )set output length 245
 -- allTopologiesOnSet [1,2,3,4]
 -- validateTopologyList(allTopologiesOnSet [1,2,3,4],4)
---
--- To test:
 --
 -- test TopologyFinite
 -- y1 := topologyFiniteLeftOrder(3)
@@ -112,6 +116,10 @@ TopologyFinite() : Exports == Impl where
 
     allTopologiesOnSet : (s : List NNI) -> List %
       ++ Given a set construct a list of all possible topologies on that set
+      ++ Warning: This function can return very long lists, if the input set is 6 or
+      ++ more elements then the computer may run out of resources and crash.
+      ++ I have written an explanation of this algorithm on the web page here:
+      ++ https://www.euclideanspace.com/maths/topology/topologicalSpace/finite/all/index.htm
 
     countAllTopologiesOnSet : (s : List NNI) -> NNI
       ++ Given a set count all possible topologies on that set
@@ -441,6 +449,10 @@ TopologyFinite() : Exports == Impl where
      allValidTopol
 
    -- Given a set, construct a list of all possible topologies on that set
+   -- Warning: This function can return very long lists, if the input set is 6 or
+   -- more elements then the computer may run out of resources and crash.
+   -- I have written an explanation of this algorithm on the web page here:
+   -- https://www.euclideanspace.com/maths/topology/topologicalSpace/finite/all/index.htm
    allTopologiesOnSet(s : List NNI) : List % ==
      dim:NNI := #s
      if dim=0 then return [topologyFinite [[]]]
