@@ -1,10 +1,13 @@
--- to compile
 -- To run this code on FriCAS first install and run the  FriCAS code as described on
 -- https://fricas.sourceforge.net/download.html
 -- Then compile this code:
 -- )co fricas/topology.spad
 --
 -- Here are some things to test the code:
+--
+-- test topology classes
+-- t := topologyIsoClass([1,2,2,3],[[2,1],[3,1],[4,2],[4,2]])
+-- listMeet(t,2,3)
 --
 -- )set output length 245
 -- allTopologiesOnSet [1,2,3,4]
@@ -467,6 +470,196 @@ TopologyFinite() : Exports == Impl where
      if dim=1 then return 2
      -- start with degree 0, an empty open set
      #allTopologiesRecursive([[]],1,dim)
+
+)abbrev domain TOPISO TopologyIsoClass
+++ Author: Martin Baker
+++ Description:
+++   This represents a class of isomorphic topologies.
+++   "=" is true if topologies are isomorphic.
+++   for more documentation see:
+++ References:
+++   https://www.euclideanspace.com/prog/scratchpad/mycode/topology/finite/
+
+TopologyIsoClass() : Exports == Impl where
+  NNI==> NonNegativeInteger
+  x<<y ==> hconcat(x::OutputForm, y::OutputForm)
+
+  Exports ==> SetCategory() with
+
+   -- constructor
+   topologyIsoClass : (unlabeledOpenSets:List NNI, structure:List List NNI) -> %
+
+   listMeet : (a:%,os: NNI,os2:NNI) -> List NNI
+
+   listJoin : (a:%,os: NNI,os2:NNI) -> List NNI
+
+  Impl ==> add
+
+   -- A representation of a topology isomorphism class consisting of:
+   -- unlabeledOpenSets: the cardinality of each set
+   -- substructure: subset structure represented as partially ordered set (poset)
+   -- Only immediate subsets are listed (like Hasse diagram)
+   Rep := Record(unlabeledOpenSets:List NNI, substructure:List Record(superset:NNI,subset:NNI))
+
+   -- constructor
+   topologyIsoClass(unlabeledOpenSets:List NNI, structure:List List NNI) : % ==
+     [unlabeledOpenSets, [[first x,second x] for x in structure]]
+
+   "="(a:%,b:%) : Boolean ==
+     a=b
+
+   -- display
+   coerce(x : %) : OutputForm ==
+     uos : List NNI := x.unlabeledOpenSets
+     subs := x.substructure
+     msg:OutputForm := message "topology class=" << uos << message " sub="
+     msg << bracket[((a.superset)::OutputForm << message ">" << a.subset) for a in subs]
+
+   addifnew(lst: List NNI,x:NNI) : List NNI ==
+       if member?(x, lst) then return lst
+       cons(x,lst)
+
+   -- return supersets
+   up(a:%,os: NNI) : List NNI ==
+     res: List NNI := []
+     for x in a.substructure repeat
+       if os=x.subset then
+         res:=addifnew(res,x.superset)
+     res
+
+   -- Return subsets of a given open set.
+   -- Only return immediate subsets (not subsets of subsets)
+   -- It is possible to have more than one subset so can return multiple values.
+   -- os is index into unlabeledOpenSets
+   down(a:%,os: NNI) : List NNI ==
+     res: List NNI := []
+     for x in a.substructure repeat
+       if os=x.superset then
+         res:=addifnew(res,x.subset)
+         --print(message "down found x=" << x << message " os=" << os <<
+         --    message " res=" << res)
+     --print(message "down a=" << a << message " os=" << os <<
+     --        message " res=" << res)
+     res
+
+   -- helper function for listMeet below
+   listMeetHop(a:%,oss1:List NNI,oss2:List NNI,oss1Local:List NNI,oss2Local:List NNI) : List NNI ==
+     print(message "listMeet a=" << a << message " oss1=" << oss1 <<
+             message " oss2=" << oss2 << message " oss1Local=" << oss1Local <<
+             message " oss2Local=" << oss2Local )
+     res: List NNI := []
+     for e in oss1Local repeat
+       for e2 in oss2 repeat
+         if e=e2 then res:=addifnew(res,e)
+     for e in oss1 repeat
+       for e2 in oss2Local repeat
+         if e=e2 then res:=addifnew(res,e)
+     if not (empty? res) then return sort res
+     thisHop1: List NNI := []
+     thisHop2: List NNI := []
+     for os1 in oss1 repeat
+       thisHop1 := concat(thisHop1,down(a,os1))
+     for os2 in oss2 repeat
+       thisHop2 := concat(thisHop2,down(a,os2))
+     if (empty? thisHop1) and (empty? thisHop2) then return []
+     listMeetHop(a,setUnion(oss1,thisHop1),setUnion(oss2,thisHop2),thisHop1,thisHop2)
+
+   listMeet(a:%,os1: NNI,os2:NNI) : List NNI ==
+     listMeetHop(a,[os1],[os2],[os1],[os2])
+
+   -- helper function for listJoin below
+   listJoinHop(a:%,oss1:List NNI,oss2:List NNI,oss1Local:List NNI,oss2Local:List NNI) : List NNI ==
+     print(message "listJoin a=" << a << message " oss1=" << oss1 <<
+             message " oss2=" << oss2 << message " oss1Local=" << oss1Local <<
+             message " oss2Local=" << oss2Local )
+     res: List NNI := []
+     for e in oss1Local repeat
+       for e2 in oss2 repeat
+         if e=e2 then res:=addifnew(res,e)
+     for e in oss1 repeat
+       for e2 in oss2Local repeat
+         if e=e2 then res:=addifnew(res,e)
+     if not (empty? res) then return sort res
+     thisHop1: List NNI := []
+     thisHop2: List NNI := []
+     for os1 in oss1 repeat
+       thisHop1 := concat(thisHop1,up(a,os1))
+     for os2 in oss2 repeat
+       thisHop2 := concat(thisHop2,up(a,os2))
+     if (empty? thisHop1) and (empty? thisHop2) then return []
+     listJoinHop(a,setUnion(oss1,thisHop1),setUnion(oss2,thisHop2),thisHop1,thisHop2)
+
+   listJoin(a:%,os1: NNI,os2:NNI) : List NNI ==
+     listJoinHop(a,[os1],[os2],[os1],[os2])
+
+)if false
+
+   -- Return value indicates if the topology is valid upto the degree so far.
+   -- degree 1 (singletons) contains combinations of open sets like [[1],[2]] etc.
+   -- degree 2 contains combinations of open sets like [[1,2],[2,3]] etc.
+   -- and so on.
+   -- Even if this returns 'true' there may be higher degree open sets still required.
+   -- (only checks downward)
+   -- parameter 'allDegree' holds a possible topology which is valid upto the degree below
+   -- returns true if these are compatible
+   testValidTopol(a:%) : Boolean ==
+     -- For a valid topology all joins and meets must exist
+     uos:List NNI := a.unlabeledOpenSets
+     subs:List Record(super:NNI,sub:NNI)) := a.substructure
+     for x in allDegree for i in 1.. repeat
+       for y in allDegree for i2 in 1.. repeat
+         if i2>i then
+           osJoin:List NNI := listJoin(x,y)
+           if #osJoin <= degree then -- can only check upto this degree
+             if not entry?(osJoin,allDegree) then
+               return false
+           osMeet:List NNI := listMeet(x,y)
+           if not osMeet=[] then
+             if not entry?(osMeet,allDegree) then
+               return false
+     true
+
+   -- Given all potential topologies containing upto 'degree-1' open sets add
+   -- 'degree' open sets then call recursivly until we get to 'maxDegree'.
+   -- parameter 's' is all potential topologies containing only upto 'degree-1' open sets.
+   -- degree 1 (singletons) contains combinations of open sets like [[1],[2]] etc.
+   -- degree 2 contains combinations of open sets like [[1,2],[2,3]] etc. with degree 1
+   -- and so on.
+   allTopologiesRecursive(allDegree : List List NNI,
+                          degree:NNI,maxDegree:NNI) : List % ==
+     degree = maxDegree => [topologyFinite allDegree]
+     -- only at top degree are we sure we have valid topology
+     -- 'thisLevel' will hold all possible combinations of open sets for this degree
+     thisLevel:List List List NNI := kFromNCombComb(degree,maxDegree)
+     allValidTopol:List % := []
+     for topolAtLevel in thisLevel repeat
+       allDegreeSoFar : List List NNI :=
+         if topolAtLevel=[[]]
+           then allDegree
+           else
+             if allDegree=[[]]
+               then topolAtLevel
+               else concat(topolAtLevel,allDegree);
+       if testValidTopol(allDegreeSoFar,degree) then
+         validTopol : List % :=
+           allTopologiesRecursive(allDegreeSoFar,
+                          degree+1,maxDegree)
+         allValidTopol := concat(validTopol,allValidTopol)
+     allValidTopol
+
+   -- Given a set, construct a list of all possible topologies on that set
+   -- Warning: This function can return very long lists, if the input set is 6 or
+   -- more elements then the computer may run out of resources and crash.
+   -- I have written an explanation of this algorithm on the web page here:
+   -- https://www.euclideanspace.com/maths/topology/topologicalSpace/finite/all/index.htm
+   allTopologiesOnSet(s : List NNI) : List % ==
+     dim:NNI := #s
+     if dim=0 then return [topologyFinite [[]]]
+     if dim=1 then return [topologyFinite cons([[]],[s])]
+     -- start with degree 0, an empty open set
+     allTopologiesRecursive([[]],1,dim)
+
+)endif
 
 )abbrev domain TOPOSP TopoSpaceFinite
 ++ Author: Martin Baker
