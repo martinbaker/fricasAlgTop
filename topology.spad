@@ -130,7 +130,8 @@ TopologyFinite() : Exports == Impl where
 
   Impl ==> add
 
-   -- A set and a topology on it.
+   -- A topology on a finite set.
+   -- Defined by a list of open sets. Elements are labelled by a NNI number.
    Rep := Record(basis:Boolean,topology:List (Set NNI))
 
    -- getTopologyAsList(t:List (Set NNI)) : List List NNI ==
@@ -489,6 +490,23 @@ TopologyIsoClass() : Exports == Impl where
    -- constructor
    topologyIsoClass : (unlabeledOpenSets:List NNI, structure:List List NNI) -> %
 
+   topologyIsoClassTrivial : () -> %
+     ++ Constructor for trivial topology
+     ++ Top and bottom are assumed so nothing to add
+
+   topologyIsoClassDiscrete : (dim:NNI) -> %
+     ++ Constructor for discrete topology
+     ++ includes all open sets
+     ++ Top and bottom are assumed so don't have to be explicitly listed
+
+   topologyIsoClassLeftOrder : (dim:NNI) -> %
+     ++ Constructor for order topology
+     ++ The order topology may be considered on partially ordered sets as
+     ++ well as linearly ordered sets
+     ++ The open sets are {x | x<b} where b is 1..max
+     ++ On a linearly ordered set it coincides with the interval topology
+
+
    listMeet : (a:%,os: NNI,os2:NNI) -> List NNI
 
    listJoin : (a:%,os: NNI,os2:NNI) -> List NNI
@@ -497,13 +515,39 @@ TopologyIsoClass() : Exports == Impl where
 
    -- A representation of a topology isomorphism class consisting of:
    -- unlabeledOpenSets: the cardinality of each set
-   -- substructure: subset structure represented as partially ordered set (poset)
-   -- Only immediate subsets are listed (like Hasse diagram)
+   -- substructure: subset lattice structure represented as a poset
+   -- Only immediate subsets are listed (like Hasse diagram).
+   -- Top and bottom are assumed so don't have to be explicitly listed.
    Rep := Record(unlabeledOpenSets:List NNI, substructure:List Record(superset:NNI,subset:NNI))
 
    -- constructor
    topologyIsoClass(unlabeledOpenSets:List NNI, structure:List List NNI) : % ==
      [unlabeledOpenSets, [[first x,second x] for x in structure]]
+
+   topologyIsoClassTrivial() : % ==
+     [[],[]]
+
+   topologyIsoClassDiscrete(dim:NNI) : % ==
+     pascal : List NNI := [(binomial(dim,i))::NNI for i in 1..(dim-1)]
+     pascal2 : List List NNI := []
+     for n in pascal for i in 1.. repeat
+       pascal2 := cons([i for x in 1..n],pascal2)
+     cardinalities : List NNI := reduce(concat,reverse pascal2)
+     levels : List List List Integer := []
+     for k in 1..dim repeat
+       level: List List Integer :=[reverse subSet(dim,k,i)$SymmetricGroupCombinatoricFunctions for
+           i in 0..binomial(dim,k)-1]
+       levels := cons(level,levels)
+     -- TODO calculate substructure
+     substructure:List Record(superset:NNI,subset:NNI) := []
+     print(message "topologyIsoClassDiscrete pascal2=" << pascal2 << message " levels=" << levels)
+     [cardinalities,substructure]
+
+   -- generate order topology
+   topologyIsoClassLeftOrder(dim:NNI) : % ==
+     cardinalities : List NNI := [x for x in 1..dim]
+     substructure:List Record(superset:NNI,subset:NNI) := [[x+1,x] for x in 1..(dim-1)]
+     [cardinalities,substructure]
 
    "="(a:%,b:%) : Boolean ==
      a=b
