@@ -1,0 +1,542 @@
+-- To run this code on FriCAS first install and run the  FriCAS code as described on
+-- https://fricas.sourceforge.net/download.html
+-- Then compile this code:
+-- )co fricas/topology2.spad
+--
+-- Here are some things to test the code:
+--
+-- )set output length 245
+-- allTopologiesOnSet [1,2,3,4]
+-- validateTopologyList(allTopologiesOnSet [1,2,3,4],4)
+--
+-- test TopologyFinite
+-- y1 := topologyFiniteLeftOrder(3)
+-- y2 := topologyFiniteDiscrete(3)
+-- y3 := full2basis y2
+-- y4 := basis2full y3
+-- product(y1,y2)
+
+)abbrev domain TOPEXT TopologyExtension
+++ Author: Martin Baker
+++ Description:
+++   Holds multiple open sets which form a complete lattice.
+++   This has similarities to the concept of a 'face' for a simplicial complex.
+++   for more documentation see:
+++ References:
+++   https://www.euclideanspace.com/prog/scratchpad/mycode/topology/finite/
+
+TopologyExtension() : Exports == Impl where
+  NNI==> NonNegativeInteger
+  x<<y ==> hconcat(x::OutputForm, y::OutputForm)
+
+  Exports ==> Join(SetCategory(),Lattice) with
+
+    topologyExtension : (Set NNI) -> %
+    members1 : (s1:%) -> List NNI
+    member1? : (x:NNI, s1:%) -> Boolean
+    --subset1? : (s1 : %, t1 : %) -> Boolean
+    empty1? : (s1 : %) -> Boolean
+    set1 : (s1:List NNI) -> %
+    cardinality1 : (s1:%) -> NNI
+
+  Impl ==> add
+
+   --
+   Rep := Record(base:Set NNI,ext:Set NNI)
+
+   topologyExtension(a:Set NNI) : % ==
+     [a,set []]
+
+   _\_/(a:%, b:%) : % ==
+     [intersect(a.base,b.base),set []]
+
+   _/_\(a:%, b:%) : % ==
+     [union(a.base,b.base),set []]
+
+   coerce(s : %) : OutputForm ==
+       brace [x::OutputForm for x in parts (s.base)]$List(OutputForm)
+
+   members1(s1:%) : List NNI ==
+     s:Set NNI := (s1.base) pretend (Set NNI)
+     members(s)
+
+   member1?(x:NNI, s1:%) : Boolean ==
+     for y in members1(s1) repeat
+       if x=y then return true
+     false
+
+   --subset1?(s1 : %, t1 : %) : Boolean ==
+   --  s:Set NNI := (s1.base) pretend (Set NNI)
+   --  t:Set NNI := (t1.base) pretend (Set NNI)
+   --  #s <= #t and every?((x : NNI) : Boolean +-> member1?(x, t), parts s)
+
+   empty1?(s1 : %) : Boolean ==
+     s:Set NNI := (s1.base) pretend (Set NNI)
+     empty?(s)
+
+   set1(s:List NNI) : % ==
+     [set s,set []]
+
+   cardinality1(s1:%) : NNI ==
+     s:Set NNI := (s1.base) pretend (Set NNI)
+     cardinality(s)
+
+)abbrev domain TOPFIN TopologyFinite
+++ Author: Martin Baker
+++ Description:
+++   A set of open sets.
+++   Can also be thought of as a subset of the power set.
+++   It may be sufficient to use only a basis where the full
+++   topology can be reconstructed from it.
+++   for more documentation see:
+++ References:
+++   https://www.euclideanspace.com/prog/scratchpad/mycode/topology/finite/
+
+TopologyFinite() : Exports == Impl where
+  NNI==> NonNegativeInteger
+  x<<y ==> hconcat(x::OutputForm, y::OutputForm)
+
+  Exports ==> SetCategory() with
+
+    topologyFinite : (List List NNI) -> %
+      ++ constructor
+
+    topologyFiniteTrivial : () -> %
+      ++ Constructor for trivial topology
+      ++ Only empty(doesn't need to be explicitly included) and full open sets
+
+    topologyFiniteDiscrete : (dim:NNI) -> %
+      ++ Constructor for discrete topology
+      ++ includes all open sets
+      ++ Don't need to explicitly include empty
+
+    topologyFiniteLeftOrder : (dim:NNI) -> %
+      ++ Constructor for order topology
+      ++ The order topology may be considered on partially ordered sets as
+      ++ well as linearly ordered sets
+      ++ The open sets are {x | x<b} where b is 1..max
+      ++ On a linearly ordered set it coincides with the interval topology
+
+    validateTopology : (a:%,maxDegree:NNI) -> Boolean
+      ++ check this topology has all meets and joins
+
+    validateTopologyList : (a:List %,maxDegree:NNI) -> Boolean
+      ++ check this topology has all meets and joins
+      ++ also check for duplicates
+
+    getTopology : (a:%) -> List List NNI
+      ++ returns open sets as list of list
+
+    getOpenSets : (a:%) -> List TopologyExtension
+      ++ returns open sets as list of set
+
+    full2basis : (a:%) -> %
+      ++ Remove non-basis open sets
+      ++ That is, for each element, only the smallest open set that includes it.
+
+    basis2full : (a:%) -> %
+      ++ Add all unions of open sets not already included
+
+    coerce : (x : %) -> OutputForm
+      ++ display as symbols
+
+    intersection : (a:%, b:%) -> %
+
+    union : (a:%, b:%) -> %
+      ++ union with degenerates removed
+
+    getDimension : (a : %) -> NNI
+
+    product : (a : %, b : %) -> %
+
+    powerSetGradedOld : (d:NNI,grade:NNI) -> List List NNI
+
+    nerveConstruction : (a : %) -> FiniteSimplicialComplex(Integer)
+      ++ A nerve construction creates a simplicial complex with the
+      ++ topological properties of a given set family.
+      ++ The nerve construction is based on a cover of the set family
+      ++ The resulting complex is a discrete representation of that cover.
+
+    testValidTopol : (allDegree:List List NNI,degree:NNI) -> Boolean
+
+    allTopologiesOnSet : (s : List NNI) -> List %
+      ++ Given a set construct a list of all possible topologies on that set
+      ++ Warning: This function can return very long lists, if the input set is 6 or
+      ++ more elements then the computer may run out of resources and crash.
+      ++ I have written an explanation of this algorithm on the web page here:
+      ++ https://www.euclideanspace.com/maths/topology/topologicalSpace/finite/all/index.htm
+
+    countAllTopologiesOnSet : (s : List NNI) -> NNI
+      ++ Given a set count all possible topologies on that set
+
+
+  Impl ==> add
+
+   -- A topology on a finite set.
+   -- Defined by a list of open sets. Elements are labelled by a NNI number.
+   Rep := Record(basis:Boolean,topology:List TopologyExtension)
+
+   getTopology(a:%) : List List NNI ==
+     t:List TopologyExtension := a.topology
+     [members1(a) for a in t]
+
+   -- returns open sets as list of set
+   getOpenSets(a:%) : List TopologyExtension ==
+     a.topology
+
+   setTopologyFromList(t:List(List(NNI))) : List TopologyExtension ==
+     [set1(a) for a in t]
+
+   -- constructor
+   topologyFinite(a : List List NNI) : % ==
+     [false,setTopologyFromList(a)]
+
+   topologyFiniteTrivial() : % ==
+     [false,empty]
+
+   -- local function to add if new
+   addIfNew(lst : List(List(NNI)), unsorted : List(NNI)) : List(List(NNI)) ==
+       if empty?(unsorted) then return lst
+       sorted : List(NNI) := sort(unsorted)
+       if member?(sorted, lst) then return lst
+       cons(sorted,lst)
+
+   -- generate discrete topology
+   genDiscreteTopology(lst : List(List(NNI)),level : NNI,
+       thisOpenSet : List(NNI), dim : NNI) : List(List(NNI)) ==
+     -- print(message "genDiscreteTopology(" << lst  << message ","
+     --  << level  << message "," << thisOpenSet  << message "," << dim << message ")")
+     top1:List List NNI := lst
+     for i in 1..dim repeat
+       openset1 : List NNI := [i]
+       if not member?(i,thisOpenSet) then
+         -- print(message "genDiscreteTopology not member(" << thisOpenSet  << message ","
+         --   << i  << message ")")
+         openset2 : List(NNI) := concat(thisOpenSet,openset1)
+         if (level+1)<dim then
+           top1 := genDiscreteTopology(top1,level+1,openset2,dim)
+         top1 := addIfNew(top1,openset2)
+     top1
+
+   topologyFiniteDiscrete(dim:NNI) : % ==
+     top1:List List NNI := empty
+     top1 := genDiscreteTopology(top1,1,empty,dim)
+     [false,setTopologyFromList(top1)]
+
+   -- generate order topology
+   genOrderTopology(lst : List(List(NNI)),level : NNI,
+       thisOpenSet : List(NNI), dim : NNI) : List(List(NNI)) ==
+     -- print(message "genOrderTopology(" << lst  << message ","
+     --  << level  << message "," << thisOpenSet  << message "," << dim << message ")")
+     top1:List List NNI := lst
+     openset1:List NNI := []
+     for i in 1..dim repeat
+       -- print(message "genOrderTopology loop(" << top1  << message "," << i  << message ")")
+       openset1 := cons(i,openset1)
+       top1 := cons(openset1,top1)
+     reverse top1
+
+   -- generate order topology
+   topologyFiniteLeftOrder(dim:NNI) : % ==
+     top1:List List NNI := empty
+     top1 := genOrderTopology(top1,1,empty,dim)
+     [false,setTopologyFromList(top1)]
+
+   -- check this topology has all meets and joins
+   validateTopology(a:%,maxDegree:NNI) : Boolean ==
+     top1:List TopologyExtension := getOpenSets(a)
+     if empty?(top1) then return true
+     for os1 in top1 repeat
+       for os2 in top1 repeat
+         join:TopologyExtension := os1 \/ os2
+         meet:TopologyExtension := os1 /\ os2
+         if not empty1?(meet) then
+           if not member?(meet,top1) then
+             print(message "validateTopology invalid:" << top1)
+             print(message " os1=" << os1 << message " os2=" << os2)
+             print(message " meet=" << meet)
+             return false
+     true
+
+   -- check this topology has all meets and joins
+   -- also check for duplicates
+   validateTopologyList(a:List %,maxDegree:NNI) : Boolean ==
+     for topol in a repeat
+       if not validateTopology(topol,maxDegree) then
+         print(message "validateTopologyList invalid:" << topol)
+         return false
+     true
+
+
+   -- To find a basis: for every element of the set find the smallest
+   -- open set that contains it.
+   -- Remove non-basis open sets
+   -- That is, for each element, only the smallest open set that includes it.
+   full2basis(a:%) : % ==
+     -- assume number of elements is maximum index
+     numEle:NNI := 0
+     top1:List List NNI := getTopology(a)
+     for x in top1 repeat
+       for y in x repeat
+         if y>numEle then numEle:=y
+     basisSets:List List NNI := empty
+     for currEle in 1..numEle repeat
+       basisCandidate:List NNI := empty
+       minSize:NNI := 0
+       for currOpenSet in top1 repeat
+         currSize:NNI := #currOpenSet
+         if member?(currEle,currOpenSet) and not empty?(currOpenSet) and
+          (minSize=0 or currSize < minSize) then
+            --print(message "adding" << currOpenSet  << message " minSize="
+            --  << minSize << message " currEle=" << currEle)
+            basisCandidate := currOpenSet
+            minSize := #currOpenSet
+       basisSets := addIfNew(basisSets,basisCandidate)
+     [true,setTopologyFromList(basisSets)]
+
+   unionLocal(a:List NNI, b:List NNI) : List NNI ==
+     res:List NNI := a
+     for x in b repeat
+       if not member?(x, res) then res:=cons(x,res)
+     res
+
+   -- Add all unions of open sets not already included
+   basis2full(a:%) : % ==
+     top1:List List NNI := getTopology(a)
+     top2:List List NNI := copy(top1) -- so we dont alter top1 inside loop
+     for x in top1 repeat
+       for y in top1 repeat
+         z : List NNI := sort (unionLocal(x,y))
+         top2 := addIfNew(top2,z)
+         -- print(message "x=" << x  << message " y="
+         --  << y << message " union=" << z)
+     [false,setTopologyFromList(top2)]
+
+   -- display
+   coerce(x : %) : OutputForm ==
+     x1:List TopologyExtension := x.topology
+     msg:OutputForm := if x.basis then message "basis=" else message "topology="
+     msg << bracket[(a::OutputForm) for a in x1]
+
+   "="(a:%,b:%) : Boolean ==
+     a=b
+
+   -- intersection
+   intersection(a:%, b:%) : % ==
+     -- sort(setIntersection(a,b))
+     a
+
+   -- union with degenerates removed
+   union(a:%, b:%) : % ==
+     -- removeDuplicates!(merge("<",a,b))
+     a
+
+   getDimension(a : %) : NNI ==
+     numEle:NNI := 0
+     top1:List TopologyExtension := a.topology
+     for x in top1 repeat
+       if cardinality1(x)$TopologyExtension > numEle then numEle := cardinality1(x)$TopologyExtension
+     numEle
+
+   shift(a : TopologyExtension, distance : NNI) : TopologyExtension ==
+     set1 [x+distance for x in members1(a)]
+
+   productOfSets(a : TopologyExtension, b : TopologyExtension) : TopologyExtension ==
+     -- should check that a and b are disjoint
+     a \/ b
+
+   product(a : %, b : %) : % ==
+     top1:List TopologyExtension := (full2basis a).topology
+     top2:List TopologyExtension := (full2basis b).topology
+     -- following only works for full not basis
+     sizea:NNI := getDimension(a)
+     sizeb:NNI := getDimension(a)
+     top2s:List TopologyExtension := [shift(x,sizea) for x in top2]
+     res:List TopologyExtension := empty
+     for x in top1 repeat
+       for y in top2s repeat
+         res := cons(productOfSets(x,y),res)
+     [true,res]
+
+   -- local function to add if new
+   addIfNew2(lst : List TopologyExtension, unsorted : TopologyExtension) : List TopologyExtension ==
+       if empty1?(unsorted) then return lst
+       if member?(unsorted, lst) then return lst
+       cons(unsorted,lst)
+
+   -- https://sauln.github.io/blog/towers-nerves/
+   -- A nerve construction creates a simplicial complex with the
+   -- topological properties of a given set family.
+   -- The nerve construction is based on a cover of the set family
+   -- The resulting complex is a discrete representation of that cover.
+   nerveConstruction(a : %) : FiniteSimplicialComplex(Integer) ==
+     -- For each nonempty intersection of n elements in the cover,
+     -- add an (n-1)-dimensional simplex.
+     top1:List TopologyExtension := (a::Rep).topology
+     intersections:List TopologyExtension := empty
+     for x in top1 repeat
+       for y in top1 repeat
+         intersec:TopologyExtension := x /\ y
+         intersections := addIfNew2(intersections,intersec)
+         -- print(message "x=" << x  << message " y="
+         --    << y << message " intersec=" << intersec)
+     -- print(message "intersections=" << intersections )
+     -- Add a vertex for each element in the cover.
+     -- Add an edge between two vertices if the corresponding sets overlap.
+     leng:NNI := #intersections
+     eles:List Integer := [x for x in 1..leng]
+     top1:List List NNI := [members1(a) for a in intersections]
+     simplicialComplex(eles,top1)
+
+   subset(li:List NNI, n:NNI) : List NNI ==
+     [x for x in li for i in 0..#li-1 | bit?(n, i)]
+
+   powerSet(s:List NNI) : List List NNI ==
+     empty? s => [s]
+     concat(p:=powerSet(rest s),[cons(first s,x) for x in p])
+
+   powerSetOfLists(s:List List NNI) : List List List NNI ==
+     empty? s => [s]
+     -- print(message "powerSetOfLists=" << s )
+     p:=powerSetOfLists(rest s)
+     concat(p,[cons(first s,x) for x in p])
+
+   -- Return all combinations of k from n
+   -- example:
+   -- if k=1 and n=3 then return [{1}],[{2}],[{3}]]
+   kFromNCombinations(k1:NNI,n1:NNI) : List List NNI ==
+     n:Integer := n1
+     k:Integer := k1
+     r : List List Integer :=
+       [reverse subSet(n,k,i)$SymmetricGroupCombinatoricFunctions for
+         i in 0..binomial(n,k)-1]
+     [[(y+1)::NNI for y in x] for x in r]
+
+   -- Return combinations of all combinations of k from n
+   -- if k=1 and n=3  then return [{1}],[{2}],[{3}],[{1},{2}] ... [{1},{2},{3}]
+   kFromNCombComb(k1:NNI,n1:NNI) : List List List NNI ==
+     powerSetOfLists(kFromNCombinations(k1,n1))
+
+   grade(s:List List NNI,x:NNI) : List List NNI ==
+     empty? s => s
+     reverse [os for os in s | #os=x]
+
+   listMeet(os:List NNI,os2:List NNI) : List NNI ==
+     res: List NNI := []
+     for e in os repeat
+       for e2 in os2 repeat
+         if e=e2 then res:=cons(e,res)
+     if empty? res then return res
+     sort res
+
+   listJoin(os:List NNI,os2:List NNI) : List NNI ==
+     res: List NNI := []
+     for e in os repeat
+       if not entry?(e,res) then res:=cons(e,res)
+     for e in os2 repeat
+       if not entry?(e,res) then res:=cons(e,res)
+     if empty? res then return res
+     sort res
+
+   -- Return value indicates if the topology is valid upto the degree so far.
+   -- degree 1 (singletons) contains combinations of open sets like [[1],[2]] etc.
+   -- degree 2 contains combinations of open sets like [[1,2],[2,3]] etc.
+   -- and so on.
+   -- Even if this returns 'true' there may be higher degree open sets still required.
+   -- (only checks downward)
+   -- parameter 'allDegree' holds a possible topology which is valid upto the degree below
+   -- returns true if these are compatible
+   testValidTopol(allDegree:List List NNI,
+                  degree:NNI) : Boolean ==
+     -- For a valid topology all joins and meets must exist
+     for x in allDegree for i in 1.. repeat
+       for y in allDegree for i2 in 1.. repeat
+         if i2>i then
+           osJoin:List NNI := listJoin(x,y)
+           if #osJoin <= degree then -- can only check upto this degree
+             if not entry?(osJoin,allDegree) then
+               return false
+           osMeet:List NNI := listMeet(x,y)
+           if not osMeet=[] then
+             if not entry?(osMeet,allDegree) then
+               return false
+     true
+
+   -- Given all potential topologies containing upto 'degree-1' open sets add
+   -- 'degree' open sets then call recursivly until we get to 'maxDegree'.
+   -- parameter 's' is all potential topologies containing only upto 'degree-1' open sets.
+   -- degree 1 (singletons) contains combinations of open sets like [[1],[2]] etc.
+   -- degree 2 contains combinations of open sets like [[1,2],[2,3]] etc. with degree 1
+   -- and so on.
+   allTopologiesRecursive(allDegree : List List NNI,
+                          degree:NNI,maxDegree:NNI) : List % ==
+     degree = maxDegree => [topologyFinite allDegree]
+     -- only at top degree are we sure we have valid topology
+     -- 'thisLevel' will hold all possible combinations of open sets for this degree
+     thisLevel:List List List NNI := kFromNCombComb(degree,maxDegree)
+     allValidTopol:List % := []
+     for topolAtLevel in thisLevel repeat
+       allDegreeSoFar : List List NNI :=
+         if topolAtLevel=[[]]
+           then allDegree
+           else
+             if allDegree=[[]]
+               then topolAtLevel
+               else concat(topolAtLevel,allDegree);
+       if testValidTopol(allDegreeSoFar,degree) then
+         validTopol : List % :=
+           allTopologiesRecursive(allDegreeSoFar,
+                          degree+1,maxDegree)
+         allValidTopol := concat(validTopol,allValidTopol)
+     allValidTopol
+
+   -- Given a set, construct a list of all possible topologies on that set
+   -- Warning: This function can return very long lists, if the input set is 6 or
+   -- more elements then the computer may run out of resources and crash.
+   -- I have written an explanation of this algorithm on the web page here:
+   -- https://www.euclideanspace.com/maths/topology/topologicalSpace/finite/all/index.htm
+   allTopologiesOnSet(s : List NNI) : List % ==
+     dim:NNI := #s
+     if dim=0 then return [topologyFinite [[]]]
+     if dim=1 then return [topologyFinite cons([[]],[s])]
+     -- start with degree 0, an empty open set
+     allTopologiesRecursive([[]],1,dim)
+
+   -- Given a set, count all possible topologies on that set
+   countAllTopologiesOnSet(s : List NNI) : NNI ==
+     dim:NNI := #s
+     if dim=0 then return 0
+     if dim=1 then return 2
+     -- start with degree 0, an empty open set
+     #allTopologiesRecursive([[]],1,dim)
+
+--Copyright (c) 2025, Martin J Baker.
+--All rights reserved.
+--
+--Redistribution and use in source and binary forms, with or without
+--modification, are permitted provided that the following conditions are
+--met:
+--
+--    - Redistributions of source code must retain the above copyright
+--      notice, this list of conditions and the following disclaimer.
+--
+--    - Redistributions in binary form must reproduce the above copyright
+--      notice, this list of conditions and the following disclaimer in
+--      the documentation and/or other materials provided with the
+--      distribution.
+--
+--    - Neither the name of Martin J Baker. nor the
+--      names of its contributors may be used to endorse or promote products
+--      derived from this software without specific prior written permission.
+--
+--THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+--IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+--TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+--PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
+--OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+--EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+--PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+--PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+--LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+--NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+--SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
