@@ -33,14 +33,30 @@ TopologyExtension() : Exports == Impl where
   Exports ==> Join(SetCategory,Lattice) with
 
     topologyExtension : (b:Set NNI,e:Set NNI) -> %
+      ++ constructor: parameters are:
+      ++ ext is extension set
+      ++ base is complete lattice on given set
+      ++ these are checked for disjointedness
+
     members1 : (s1:%) -> List NNI
+      ++ all members in both base and extension
+
     member1? : (x:NNI, s1:%) -> Boolean
+      ++ check x for membership of either base or extension
+
     empty1? : (s1 : %) -> Boolean
+      ++ true if both base and extension are empty
+
     cardinality1 : (s1:%) -> NNI
+      ++ number of elements in both base and extension
+
+    selectGrade : (a:%,degree:NNI) -> List Set NNI
+      ++ return all sets that have 'degree' elements
 
   Impl ==> add
 
-   --
+   -- base is complete lattice on given set
+   -- ext is extension set
    Rep := Record(base:Set NNI,ext:Set NNI)
 
    plusSeperatedList(ts:List OutputForm) : OutputForm ==
@@ -53,15 +69,21 @@ TopologyExtension() : Exports == Impl where
            res := cons(t,res)
      hconcat (reverse res)
 
+   -- constructor: parameters are:
+   -- ext is extension set
+   -- base is complete lattice on given set
+   -- these are checked for disjointedness
    topologyExtension(e:Set NNI,b:Set NNI) : % ==
      for y in members(b) repeat
        if member?(y,e) then
          print _
-         (brace plusSeperatedList [x::OutputForm for x in parts e]$List(OutputForm)) << _
-         (brace plusSeperatedList [x::OutputForm for x in parts b]$List(OutputForm))
+         hconcat((brace plusSeperatedList [x::OutputForm for x in parts e]$List(OutputForm)), _
+         (brace plusSeperatedList [x::OutputForm for x in parts b]$List(OutputForm)))
          error "base and ext must be disjoint"
      [b,e]
 
+   -- The union of two complete lattices is not necessarily a complete lattice
+   -- so this operation is not valid.
    _\_/(a:%, b:%) : % ==
      [intersect(a.ext,b.ext),intersect(a.base,b.base)]
 
@@ -106,8 +128,20 @@ TopologyExtension() : Exports == Impl where
      empty?(s1.ext) and empty?(s1.base)
 
    cardinality1(s1:%) : NNI ==
-     s:Set NNI := (s1.base) pretend (Set NNI)
-     cardinality(s)
+     s:Set NNI := (s1.ext) pretend (Set NNI)
+     s2:Set NNI := (s1.base) pretend (Set NNI)
+     cardinality(s)+cardinality(s2)
+
+   -- return all sets that have 'degree' elements
+   selectGrade(a:%,degree:NNI) : List Set NNI ==
+     s:Set NNI := (a.ext) pretend (Set NNI)
+     s2:Set NNI := (a.base) pretend (Set NNI)
+     r : List List Integer :=
+       [reverse subSet(#s2,degree,i)$SymmetricGroupCombinatoricFunctions for
+         i in 0..binomial(#s2,degree)-1]
+     res : List Set NNI := [set [elt(members(s2),x+1) for x in y] for y in r]
+     if cardinality(s)=degree then res:= cons(s,res)
+     res
 
 )abbrev domain TOPFIN TopologyFinite
 ++ Author: Martin Baker
@@ -496,36 +530,62 @@ TopologyFinite() : Exports == Impl where
                return false
      true
 
+   -- The base in TopologyExtension will contain multiple grades, this function filters out
+   -- one specific grade.
+   selectGrade(allOpenSetsBelowThis:List TopologyExtension,degree:NNI) : List Set NNI ==
+     res:List Set NNI := []
+     for e in allOpenSetsBelowThis repeat
+       s:List Set NNI := selectGrade(e,degree)
+       res := concat(res,s)
+     res
+
    -- Given all potential topologies containing upto 'degree-1' open sets add
-   -- 'degree' open sets then call recursivly until we get to 'maxDegree'.
-   -- parameter 's' is all potential topologies containing only upto 'degree-1' open sets.
-   -- degree 1 (singletons) contains combinations of open sets like [[1],[2]] etc.
-   -- degree 2 contains combinations of open sets like [[1,2],[2,3]] etc. with degree 1
+   -- 'degree' open sets then call recursively until we get to 'maxDegree'.
+   -- parameter 'allOpenSetsBelowThis' is all potential topologies containing only upto 'degree-1' open sets.
+   -- degree 1 (singletons) contains combinations of open sets like [{1},{2}] etc.
+   -- degree 2 contains combinations of open sets like [{1,2},{2,3}] etc. with degree 2
    -- and so on.
    allTopologiesRecursive(allOpenSetsBelowThis : List TopologyExtension,
                           degree:NNI,maxDegree:NNI) : List % ==
-     degree = maxDegree => [topologyFinite2 allOpenSetsBelowThis]
      -- only at top degree are we sure we have valid topology
+     degree = maxDegree => [topologyFinite2 allOpenSetsBelowThis]
      -- 'thisLevel' will hold all possible combinations of open sets for this degree
      thisLevel:List List List NNI := kFromNCombComb(degree,maxDegree)
+     -- 'allValidTopol' will hold the open sets below this level plus
+     -- this level open sets, if they pass validity test.
      allValidTopol:List % := []
+     -- 'mustHaveSets' hold the open sets at this grade which have already been determined
+     -- as necessary. This lets us quickly eliminate some invalid cases.
+     mustHaveSets:List Set NNI := selectGrade(allOpenSetsBelowThis,degree)
+     -- print(message "allTopologiesRecursive allOpenSetsBelowThis=" << allOpenSetsBelowThis <<
+     --       message " mustHaveSets=" << mustHaveSets)
      for topolAtLevel in thisLevel repeat
-       topolAtLevelExt: List TopologyExtension :=
-         if degree=1
-           then [topologyExtension(set [],set [if topolAtLevel=[] then [] else reduce(concat,topolAtLevel)])]
-           else [topologyExtension(set x,set []) for x in topolAtLevel]
-       allDegreeSoFar : List TopologyExtension :=
-         if topolAtLevel=[[]]
-           then allOpenSetsBelowThis
-           else
-             if allOpenSetsBelowThis=[]
-               then topolAtLevelExt
-               else concat(topolAtLevelExt,allOpenSetsBelowThis);
-       if testValidTopol(allDegreeSoFar,degree) then
-         validTopol : List % :=
-           allTopologiesRecursive(allDegreeSoFar,
-                          degree+1,maxDegree)
-         allValidTopol := concat(validTopol,allValidTopol)
+       valid:Boolean := true
+       if not (empty? mustHaveSets) then
+         for m in mustHaveSets repeat
+           if not member?(members m,topolAtLevel) then valid := false
+       -- print(message "allTopologiesRecursive topolAtLevel=" << topolAtLevel <<
+       --      message " mustHaveSets=" << mustHaveSets <<
+       --      message " valid=" << valid)
+       if valid then
+         topolAtLevelExt: List TopologyExtension :=
+           if degree=1 and #topolAtLevel>1
+             then [topologyExtension(set [],set [if topolAtLevel=[] then [] else reduce(concat,topolAtLevel)])]
+             else [topologyExtension(set x,set []) for x in topolAtLevel]
+         -- 'allDegreeSoFar' will hold this level open sets, plus the ones below it, they are not
+         -- yet tested for validity.
+         allDegreeSoFar : List TopologyExtension :=
+           if topolAtLevel=[[]]
+             then allOpenSetsBelowThis
+             else
+               if allOpenSetsBelowThis=[]
+                 then topolAtLevelExt
+                 else concat(topolAtLevelExt,allOpenSetsBelowThis);
+         if testValidTopol(allDegreeSoFar,degree) then
+           validTopol : List % :=
+             allTopologiesRecursive(allDegreeSoFar,
+                            degree+1,maxDegree)
+           allValidTopol := concat(validTopol,allValidTopol)
      allValidTopol
 
    -- Given a set, construct a list of all possible topologies on that set
