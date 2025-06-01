@@ -30,7 +30,7 @@ TopologyExtension() : Exports == Impl where
   NNI==> NonNegativeInteger
   x<<y ==> hconcat(x::OutputForm, y::OutputForm)
 
-  Exports ==> Join(SetCategory,Lattice) with
+  Exports ==> SetCategory with
 
     topologyExtension : (b:Set NNI,e:Set NNI) -> %
       ++ constructor: parameters are:
@@ -53,9 +53,20 @@ TopologyExtension() : Exports == Impl where
     selectGrade : (a:%,degree:NNI) -> List Set NNI
       ++ return all sets that have 'degree' elements
 
+    allOpenSets : (a:%) -> List Set NNI
+      ++ Power set of base + ext
+
+    join : (a:%, b:%) -> List Set NNI
+      ++ The union of two complete lattices is not necessarily a complete lattice
+      ++ so produce a list instead
+
+    meet : (a:%, b:%) -> List Set NNI
+      ++ The intersection of two complete lattices is not necessarily a complete lattice
+      ++ so produce a list instead
+
   Impl ==> add
 
-   -- base is complete lattice on given set
+   -- base represents complete lattice on given set
    -- ext is extension set
    Rep := Record(base:Set NNI,ext:Set NNI)
 
@@ -82,13 +93,51 @@ TopologyExtension() : Exports == Impl where
          error "base and ext must be disjoint"
      [b,e]
 
-   -- The union of two complete lattices is not necessarily a complete lattice
-   -- so this operation is not valid.
-   _\_/(a:%, b:%) : % ==
-     [intersect(a.ext,b.ext),intersect(a.base,b.base)]
+   powerSet(s:List NNI) : List List NNI ==
+     empty? s => [s]
+     concat(p:=powerSet(rest s),[cons(first s,x) for x in p])
 
-   _/_\(a:%, b:%) : % ==
-     [union(a.ext,b.ext),union(a.base,b.base)]
+    -- Power set of base + ext
+   allOpenSets(a:%) : List Set NNI ==
+     b:Set NNI := (a.base) pretend (Set NNI)
+     e:Set NNI := (a.ext) pretend (Set NNI)
+     res:List Set NNI := []
+     if not empty? b then
+       s:List List NNI := powerSet(members b)
+       res := [set x for x in s]
+     if not empty? e then
+       res := cons(e,res)
+     res
+
+   -- The union of two complete lattices is not necessarily a complete lattice
+   -- so produce a list instead
+   join(a:%, b:%) : List Set NNI ==
+     a1:List Set NNI := allOpenSets(a)
+     b1:List Set NNI := allOpenSets(b)
+     res:List Set NNI := []
+     for osa in a1 repeat
+       for osb in b1 repeat
+         if #intersect(osa,osb) > 0
+           then
+             res := cons(osa,res)
+             res := cons(osb,res)
+           else res := cons(union(osa,osb),res)
+     res
+
+   -- The intersection of two complete lattices is not necessarily a complete lattice
+   -- so produce a list instead
+   meet(a:%, b:%) : List Set NNI ==
+     a1:List Set NNI := allOpenSets(a)
+     b1:List Set NNI := allOpenSets(b)
+     res:List Set NNI := []
+     for osa in a1 repeat
+       for osb in b1 repeat
+         if #intersect(osa,osb) > 0
+           then
+             res := cons(osa,res)
+             res := cons(osb,res)
+           else res := cons(union(osa,osb),res)
+     res
 
    plusSeperatedList(ts:List OutputForm) : OutputForm ==
      res:List OutputForm := []
@@ -205,11 +254,6 @@ TopologyFinite() : Exports == Impl where
     coerce : (x : %) -> OutputForm
       ++ display as symbols
 
-    intersection : (a:%, b:%) -> %
-
-    union : (a:%, b:%) -> %
-      ++ union with degenerates removed
-
     getDimension : (a : %) -> NNI
 
     product : (a : %, b : %) -> %
@@ -313,17 +357,21 @@ TopologyFinite() : Exports == Impl where
    -- check this topology has all meets and joins
    validateTopology(a:%,maxDegree:NNI) : Boolean ==
      top1:List TopologyExtension := getOpenSets(a)
+     top12:List List Set NNI := [allOpenSets(x) for x in top1]
+     top2:List Set NNI := reduce(concat,top12)
      if empty?(top1) then return true
      for os1 in top1 repeat
        for os2 in top1 repeat
-         join:TopologyExtension := os1 \/ os2
-         meet:TopologyExtension := os1 /\ os2
-         if not empty1?(meet) then
-           if not member?(meet,top1) then
-             print(message "validateTopology invalid:" << top1)
-             print(message " os1=" << os1 << message " os2=" << os2)
-             print(message " meet=" << meet)
-             return false
+         --join:TopologyExtension := os1 \/ os2
+         --meet:TopologyExtension := os1 /\ os2
+         m:List Set NNI := meet(os1,os2)
+         if not empty?(m) then
+           for m2 in m repeat
+             if not member?(m2,top2) then
+               print(message "validateTopology invalid:" << top1)
+               print(message " os1=" << os1 << message " os2=" << os2)
+               print(message " meet=" << m)
+               return false
      true
 
    -- check this topology has all meets and joins
@@ -389,16 +437,6 @@ TopologyFinite() : Exports == Impl where
    _=(a:%,b:%) : Boolean ==
      a=b
 
-   -- intersection
-   intersection(a:%, b:%) : % ==
-     -- sort(setIntersection(a,b))
-     a
-
-   -- union with degenerates removed
-   union(a:%, b:%) : % ==
-     -- removeDuplicates!(merge("<",a,b))
-     a
-
    getDimension(a : %) : NNI ==
      numEle:NNI := 0
      top1:List TopologyExtension := a.topology
@@ -411,7 +449,8 @@ TopologyFinite() : Exports == Impl where
 
    productOfSets(a : TopologyExtension, b : TopologyExtension) : TopologyExtension ==
      -- should check that a and b are disjoint
-     a \/ b
+     --a \/ b
+     a
 
    product(a : %, b : %) : % ==
      top1:List TopologyExtension := (full2basis a).topology
@@ -444,8 +483,10 @@ TopologyFinite() : Exports == Impl where
      intersections:List TopologyExtension := empty
      for x in top1 repeat
        for y in top1 repeat
-         intersec:TopologyExtension := x /\ y
-         intersections := addIfNew2(intersections,intersec)
+         -- intersec:TopologyExtension := x /\ y
+         intersec:List Set NNI := meet(x,y)
+         --intersections := addIfNew2(intersections,intersec)
+         -- ***************** needs fixing ************************
          -- print(message "x=" << x  << message " y="
          --    << y << message " intersec=" << intersec)
      -- print(message "intersections=" << intersections )
@@ -517,17 +558,19 @@ TopologyFinite() : Exports == Impl where
    testValidTopol(allDegree:List TopologyExtension,
                   degree:NNI) : Boolean ==
      -- For a valid topology all joins and meets must exist
+     print(message "testValidTopol allDegree=" << allDegree <<
+          message " degree=" << degree)
      for x in allDegree for i in 1.. repeat
        for y in allDegree for i2 in 1.. repeat
          if i2>i then
-           osJoin:TopologyExtension := x \/ y
-           if cardinality1(osJoin) <= degree then -- can only check upto this degree
-             if not entry?(osJoin,allDegree) then
-               return false
-           osMeet:TopologyExtension := x /\ y
-           if not cardinality1(osMeet)=0 then
-             if not entry?(osMeet,allDegree) then
-               return false
+           osJoin:List Set NNI := join(x,y)
+           -- if cardinality1(osJoin) <= degree then -- can only check upto this degree
+           --   if not entry?(osJoin,allDegree) then
+           --     return false
+           osMeet:List Set NNI := meet(x,y)
+           -- if not cardinality1(osMeet)=0 then
+           --   if not entry?(osMeet,allDegree) then
+           --     return false
      true
 
    -- The base in TopologyExtension will contain multiple grades, this function filters out
