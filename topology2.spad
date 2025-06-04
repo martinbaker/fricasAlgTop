@@ -16,45 +16,48 @@
 -- y4 := basis2full y3
 -- product(y1,y2)
 
-)abbrev domain TOPEXT TopologyExtension
+)abbrev domain TOPEXT SubTopology
 ++ Author: Martin Baker
 ++ Description:
-++   Open extension topology: Let ( X , T ) be a topological space and
-++   P a set disjoint from X. The open extension topology of
-++   T plus P is T* = T \/ { X \/ A : A subset of P }
+++   This is a complete lattice in that it has all meets and joins of open sets.
+++   These meets and joins can be extended to the whole topology, so it is a sub-topology.
+++   We can also define meets and joins of the sub-topologies themselves, these are only
+++   closed for meets so, for whole sub-topologies, it is a MeetSemilattice.
+++   Joins of whole sub-topologies are sets of sub-topologies, this is like glueing
+++   sub-topologies together.
 ++   for more documentation see:
 ++ References:
 ++   https://www.euclideanspace.com/prog/scratchpad/mycode/topology/finite/
 
-TopologyExtension() : Exports == Impl where
+SubTopology() : Exports == Impl where
   NNI==> NonNegativeInteger
   x<<y ==> hconcat(x::OutputForm, y::OutputForm)
 
-  Exports ==> SetCategory with
+  Exports ==> MeetSemilattice with
 
-    topologyExtension : (b:Set NNI,e:Set NNI) -> %
+    subTopology : (b:Set NNI,e:Set NNI) -> %
       ++ constructor: parameters are:
       ++ ext is extension set
-      ++ base is complete lattice on given set
+      ++ lattice is complete lattice on given set
       ++ these are checked for disjointedness
 
     members1 : (s1:%) -> List NNI
-      ++ all members in both base and extension
+      ++ all members in both lattice and extension
 
     member1? : (x:NNI, s1:%) -> Boolean
-      ++ check x for membership of either base or extension
+      ++ check x for membership of either lattice or extension
 
     empty1? : (s1 : %) -> Boolean
-      ++ true if both base and extension are empty
+      ++ true if both lattice and extension are empty
 
     cardinality1 : (s1:%) -> NNI
-      ++ number of elements in both base and extension
+      ++ number of elements in both lattice and extension
 
     selectGrade : (a:%,degree:NNI) -> List Set NNI
       ++ return all sets that have 'degree' elements
 
-    allOpenSets : (a:%) -> List Set NNI
-      ++ Power set of base + ext
+    allOpenSets : (a:%) -> List List NNI
+      ++ Power set of lattice + ext
 
     join : (a:%, b:%) -> List Set NNI
       ++ The union of two complete lattices is not necessarily a complete lattice
@@ -66,9 +69,9 @@ TopologyExtension() : Exports == Impl where
 
   Impl ==> add
 
-   -- base represents complete lattice on given set
-   -- ext is extension set
-   Rep := Record(base:Set NNI,ext:Set NNI)
+   -- lattice represents complete lattice on given set
+   -- ext is extension set. Can think of this as the base of the lattice.
+   Rep := Record(lattice:Set NNI,ext:Set NNI)
 
    plusSeperatedList(ts:List OutputForm) : OutputForm ==
      res:List OutputForm := []
@@ -82,61 +85,59 @@ TopologyExtension() : Exports == Impl where
 
    -- constructor: parameters are:
    -- ext is extension set
-   -- base is complete lattice on given set
+   -- lattice is complete lattice on given set
    -- these are checked for disjointedness
-   topologyExtension(e:Set NNI,b:Set NNI) : % ==
+   subTopology(e:Set NNI,b:Set NNI) : % ==
      for y in members(b) repeat
        if member?(y,e) then
          print _
          hconcat((brace plusSeperatedList [x::OutputForm for x in parts e]$List(OutputForm)), _
          (brace plusSeperatedList [x::OutputForm for x in parts b]$List(OutputForm)))
-         error "base and ext must be disjoint"
+         error "lattice and ext must be disjoint"
      [b,e]
 
+   -- local helper function for allOpenSets
+   -- to generate complete lattice (power set)
    powerSet(s:List NNI) : List List NNI ==
      empty? s => [s]
      concat(p:=powerSet(rest s),[cons(first s,x) for x in p])
 
-    -- Power set of base + ext
-   allOpenSets(a:%) : List Set NNI ==
-     b:Set NNI := (a.base) pretend (Set NNI)
-     e:Set NNI := (a.ext) pretend (Set NNI)
-     res:List Set NNI := []
-     if not empty? b then
-       s:List List NNI := powerSet(members b)
-       res := [set x for x in s]
-     if not empty? e then
-       res := cons(e,res)
-     res
+   -- Power set of lattice + ext
+   allOpenSets(a:%) : List List NNI ==
+     lat:List NNI := members(a.lattice)
+     e:List NNI := members(a.ext)
+     expanded:List List NNI := powerSet lat
+     [concat(x,e) for x in expanded]
+
+   -- meet of two sub topologies
+   _/_\(a:%, b:%) : % ==
+     aext:Set NNI := a.ext
+     alat:Set NNI := a.lattice
+     bext:Set NNI := b.ext
+     blat:Set NNI := b.lattice
+     if aext=bext
+       then
+         if alat=blat then return a
+         return [intersect(alat,blat),set []]
+       else
+         m1:Set NNI := intersect(alat,alat)
+         m2:Set NNI := intersect(blat,blat)
+         return [union(m1,m2),set []]
+     [set [],set []]
 
    -- The union of two complete lattices is not necessarily a complete lattice
    -- so produce a list instead
    join(a:%, b:%) : List Set NNI ==
-     a1:List Set NNI := allOpenSets(a)
-     b1:List Set NNI := allOpenSets(b)
+     a1:List List NNI := allOpenSets(a)
+     b1:List List NNI := allOpenSets(b)
      res:List Set NNI := []
      for osa in a1 repeat
        for osb in b1 repeat
-         if #intersect(osa,osb) > 0
+         if #intersect(set osa,set osb) > 0
            then
-             res := cons(osa,res)
-             res := cons(osb,res)
-           else res := cons(union(osa,osb),res)
-     res
-
-   -- The intersection of two complete lattices is not necessarily a complete lattice
-   -- so produce a list instead
-   meet(a:%, b:%) : List Set NNI ==
-     a1:List Set NNI := allOpenSets(a)
-     b1:List Set NNI := allOpenSets(b)
-     res:List Set NNI := []
-     for osa in a1 repeat
-       for osb in b1 repeat
-         if #intersect(osa,osb) > 0
-           then
-             res := cons(osa,res)
-             res := cons(osb,res)
-           else res := cons(union(osa,osb),res)
+             res := cons(set osa,res)
+             res := cons(set osb,res)
+           else res := cons(union(set osa,set osb),res)
      res
 
    plusSeperatedList(ts:List OutputForm) : OutputForm ==
@@ -150,22 +151,22 @@ TopologyExtension() : Exports == Impl where
      hconcat (reverse res)
 
    coerce(s : %) : OutputForm ==
-     if empty?(s.ext) and empty?(s.base) then return (message "0")
+     if empty?(s.ext) and empty?(s.lattice) then return (message "0")
      if empty?(s.ext) then
        return (message "P") << _
-              (brace plusSeperatedList [x::OutputForm for x in parts (s.base)]$List(OutputForm))
-     if empty?(s.base) then
+              (brace plusSeperatedList [x::OutputForm for x in parts (s.lattice)]$List(OutputForm))
+     if empty?(s.lattice) then
        return (brace plusSeperatedList [x::OutputForm for x in parts (s.ext)]$List(OutputForm))
      (brace plusSeperatedList [x::OutputForm for x in parts (s.ext)]$List(OutputForm)) << _
      (message "*P") << _
-     (brace plusSeperatedList [x::OutputForm for x in parts (s.base)]$List(OutputForm))
+     (brace plusSeperatedList [x::OutputForm for x in parts (s.lattice)]$List(OutputForm))
 
    _=(a:%,b:%) : Boolean ==
-     (a.base = b.base) and (a.ext = b.ext)
+     (a.lattice = b.lattice) and (a.ext = b.ext)
 
    members1(s1:%) : List NNI ==
-     s:Set NNI := (s1.base) pretend (Set NNI)
-     s2:Set NNI := (s1.ext) pretend (Set NNI)
+     s:Set NNI := s1.lattice
+     s2:Set NNI := s1.ext
      concat(members(s),members(s2))
 
    member1?(x:NNI, s1:%) : Boolean ==
@@ -174,17 +175,17 @@ TopologyExtension() : Exports == Impl where
      false
 
    empty1?(s1 : %) : Boolean ==
-     empty?(s1.ext) and empty?(s1.base)
+     empty?(s1.ext) and empty?(s1.lattice)
 
    cardinality1(s1:%) : NNI ==
-     s:Set NNI := (s1.ext) pretend (Set NNI)
-     s2:Set NNI := (s1.base) pretend (Set NNI)
+     s:Set NNI := s1.ext
+     s2:Set NNI := s1.lattice
      cardinality(s)+cardinality(s2)
 
    -- return all sets that have 'degree' elements
    selectGrade(a:%,degree:NNI) : List Set NNI ==
-     s:Set NNI := (a.ext) pretend (Set NNI)
-     s2:Set NNI := (a.base) pretend (Set NNI)
+     s:Set NNI := a.ext
+     s2:Set NNI := a.lattice
      r : List List Integer :=
        [reverse subSet(#s2,degree,i)$SymmetricGroupCombinatoricFunctions for
          i in 0..binomial(#s2,degree)-1]
@@ -212,7 +213,7 @@ TopologyFinite() : Exports == Impl where
     topologyFinite : (List List NNI) -> %
       ++ constructor
 
-    topologyFinite2 : (List TopologyExtension) -> %
+    topologyFinite2 : (List SubTopology) -> %
       ++ constructor
 
     topologyFiniteTrivial : () -> %
@@ -241,7 +242,7 @@ TopologyFinite() : Exports == Impl where
     getTopology : (a:%) -> List List NNI
       ++ returns open sets as list of list
 
-    getOpenSets : (a:%) -> List TopologyExtension
+    getOpenSets : (a:%) -> List SubTopology
       ++ returns open sets as list of set
 
     full2basis : (a:%) -> %
@@ -266,7 +267,7 @@ TopologyFinite() : Exports == Impl where
       ++ The nerve construction is based on a cover of the set family
       ++ The resulting complex is a discrete representation of that cover.
 
-    testValidTopol : (allDegree:List TopologyExtension,degree:NNI) -> Boolean
+    testValidTopol : (allDegree:List SubTopology,degree:NNI) -> Boolean
 
     allTopologiesOnSet : (s : List NNI) -> List %
       ++ Given a set construct a list of all possible topologies on that set
@@ -283,24 +284,24 @@ TopologyFinite() : Exports == Impl where
 
    -- A topology on a finite set.
    -- Defined by a list of open sets. Elements are labelled by a NNI number.
-   Rep := Record(basis:Boolean,topology:List TopologyExtension)
+   Rep := Record(basis:Boolean,topology:List SubTopology)
 
    getTopology(a:%) : List List NNI ==
-     t:List TopologyExtension := a.topology
+     t:List SubTopology := a.topology
      [members1(a) for a in t]
 
    -- returns open sets as list of set
-   getOpenSets(a:%) : List TopologyExtension ==
+   getOpenSets(a:%) : List SubTopology ==
      a.topology
 
-   setTopologyFromList(t:List(List(NNI))) : List TopologyExtension ==
-     [topologyExtension(set [a],set []) for a in t]
+   setTopologyFromList(t:List(List(NNI))) : List SubTopology ==
+     [subTopology(set [a],set []) for a in t]
 
    -- constructor
    topologyFinite(a : List List NNI) : % ==
      [false,setTopologyFromList(a)]
 
-   topologyFinite2(a : List TopologyExtension) : % ==
+   topologyFinite2(a : List SubTopology) : % ==
      [false,a]
 
    topologyFiniteTrivial() : % ==
@@ -356,18 +357,18 @@ TopologyFinite() : Exports == Impl where
 
    -- check this topology has all meets and joins
    validateTopology(a:%,maxDegree:NNI) : Boolean ==
-     top1:List TopologyExtension := getOpenSets(a)
-     top12:List List Set NNI := [allOpenSets(x) for x in top1]
-     top2:List Set NNI := reduce(concat,top12)
+     top1:List SubTopology := getOpenSets(a)
+     top12:List List List NNI := [allOpenSets(x) for x in top1]
+     top2:List List NNI := reduce(concat,top12)
      if empty?(top1) then return true
      for os1 in top1 repeat
        for os2 in top1 repeat
-         --join:TopologyExtension := os1 \/ os2
-         --meet:TopologyExtension := os1 /\ os2
-         m:List Set NNI := meet(os1,os2)
-         if not empty?(m) then
-           for m2 in m repeat
-             if not member?(m2,top2) then
+         --join:SubTopology := os1 \/ os2
+         --meet:SubTopology := os1 /\ os2
+         m:SubTopology := os1 /\ os2
+         if not empty1?(m) then
+           --for m2 in m repeat
+             --if not member?(m2,top2) then
                print(message "validateTopology invalid:" << top1)
                print(message " os1=" << os1 << message " os2=" << os2)
                print(message " meet=" << m)
@@ -430,7 +431,7 @@ TopologyFinite() : Exports == Impl where
 
    -- display
    coerce(x : %) : OutputForm ==
-     x1:List TopologyExtension := x.topology
+     x1:List SubTopology := x.topology
      msg:OutputForm := if x.basis then message "basis=" else message "topology="
      msg << bracket[(a::OutputForm) for a in x1]
 
@@ -439,34 +440,34 @@ TopologyFinite() : Exports == Impl where
 
    getDimension(a : %) : NNI ==
      numEle:NNI := 0
-     top1:List TopologyExtension := a.topology
+     top1:List SubTopology := a.topology
      for x in top1 repeat
-       if cardinality1(x)$TopologyExtension > numEle then numEle := cardinality1(x)$TopologyExtension
+       if cardinality1(x)$SubTopology > numEle then numEle := cardinality1(x)$SubTopology
      numEle
 
-   shift(a : TopologyExtension, distance : NNI) : TopologyExtension ==
-     topologyExtension(set [x+distance for x in members1(a)],set [])
+   shift(a : SubTopology, distance : NNI) : SubTopology ==
+     subTopology(set [x+distance for x in members1(a)],set [])
 
-   productOfSets(a : TopologyExtension, b : TopologyExtension) : TopologyExtension ==
+   productOfSets(a : SubTopology, b : SubTopology) : SubTopology ==
      -- should check that a and b are disjoint
      --a \/ b
      a
 
    product(a : %, b : %) : % ==
-     top1:List TopologyExtension := (full2basis a).topology
-     top2:List TopologyExtension := (full2basis b).topology
+     top1:List SubTopology := (full2basis a).topology
+     top2:List SubTopology := (full2basis b).topology
      -- following only works for full not basis
      sizea:NNI := getDimension(a)
      sizeb:NNI := getDimension(a)
-     top2s:List TopologyExtension := [shift(x,sizea) for x in top2]
-     res:List TopologyExtension := empty
+     top2s:List SubTopology := [shift(x,sizea) for x in top2]
+     res:List SubTopology := empty
      for x in top1 repeat
        for y in top2s repeat
          res := cons(productOfSets(x,y),res)
      [true,res]
 
    -- local function to add if new
-   addIfNew2(lst : List TopologyExtension, unsorted : TopologyExtension) : List TopologyExtension ==
+   addIfNew2(lst : List SubTopology, unsorted : SubTopology) : List SubTopology ==
        if empty1?(unsorted) then return lst
        if member?(unsorted, lst) then return lst
        cons(unsorted,lst)
@@ -479,11 +480,11 @@ TopologyFinite() : Exports == Impl where
    nerveConstruction(a : %) : FiniteSimplicialComplex(Integer) ==
      -- For each nonempty intersection of n elements in the cover,
      -- add an (n-1)-dimensional simplex.
-     top1:List TopologyExtension := (a::Rep).topology
-     intersections:List TopologyExtension := empty
+     top1:List SubTopology := (a::Rep).topology
+     intersections:List SubTopology := empty
      for x in top1 repeat
        for y in top1 repeat
-         -- intersec:TopologyExtension := x /\ y
+         -- intersec:SubTopology := x /\ y
          intersec:List Set NNI := meet(x,y)
          --intersections := addIfNew2(intersections,intersec)
          -- ***************** needs fixing ************************
@@ -506,7 +507,6 @@ TopologyFinite() : Exports == Impl where
 
    powerSetOfLists(s:List List NNI) : List List List NNI ==
      empty? s => [s]
-     -- print(message "powerSetOfLists=" << s )
      p:=powerSetOfLists(rest s)
      concat(p,[cons(first s,x) for x in p])
 
@@ -555,11 +555,11 @@ TopologyFinite() : Exports == Impl where
    -- (only checks downward)
    -- parameter 'allDegree' holds a possible topology which is valid upto the degree below
    -- returns true if these are compatible
-   testValidTopol(allDegree:List TopologyExtension,
+   testValidTopol(allDegree:List SubTopology,
                   degree:NNI) : Boolean ==
      -- For a valid topology all joins and meets must exist
-     print(message "testValidTopol allDegree=" << allDegree <<
-          message " degree=" << degree)
+     -- print(message "testValidTopol allDegree=" << allDegree <<
+     --      message " degree=" << degree)
      for x in allDegree for i in 1.. repeat
        for y in allDegree for i2 in 1.. repeat
          if i2>i then
@@ -567,15 +567,15 @@ TopologyFinite() : Exports == Impl where
            -- if cardinality1(osJoin) <= degree then -- can only check upto this degree
            --   if not entry?(osJoin,allDegree) then
            --     return false
-           osMeet:List Set NNI := meet(x,y)
+           osMeet:SubTopology := x /\ y
            -- if not cardinality1(osMeet)=0 then
            --   if not entry?(osMeet,allDegree) then
            --     return false
      true
 
-   -- The base in TopologyExtension will contain multiple grades, this function filters out
+   -- The base in SubTopology will contain multiple grades, this function filters out
    -- one specific grade.
-   selectGrade(allOpenSetsBelowThis:List TopologyExtension,degree:NNI) : List Set NNI ==
+   selectGrade(allOpenSetsBelowThis:List SubTopology,degree:NNI) : List Set NNI ==
      res:List Set NNI := []
      for e in allOpenSetsBelowThis repeat
        s:List Set NNI := selectGrade(e,degree)
@@ -588,7 +588,7 @@ TopologyFinite() : Exports == Impl where
    -- degree 1 (singletons) contains combinations of open sets like [{1},{2}] etc.
    -- degree 2 contains combinations of open sets like [{1,2},{2,3}] etc. with degree 2
    -- and so on.
-   allTopologiesRecursive(allOpenSetsBelowThis : List TopologyExtension,
+   allTopologiesRecursive(allOpenSetsBelowThis : List SubTopology,
                           degree:NNI,maxDegree:NNI) : List % ==
      -- only at top degree are we sure we have valid topology
      degree = maxDegree => [topologyFinite2 allOpenSetsBelowThis]
@@ -611,13 +611,13 @@ TopologyFinite() : Exports == Impl where
        --      message " mustHaveSets=" << mustHaveSets <<
        --      message " valid=" << valid)
        if valid then
-         topolAtLevelExt: List TopologyExtension :=
+         topolAtLevelExt: List SubTopology :=
            if degree=1 and #topolAtLevel>1
-             then [topologyExtension(set [],set [if topolAtLevel=[] then [] else reduce(concat,topolAtLevel)])]
-             else [topologyExtension(set x,set []) for x in topolAtLevel]
+             then [subTopology(set [],set [if topolAtLevel=[] then [] else reduce(concat,topolAtLevel)])]
+             else [subTopology(set x,set []) for x in topolAtLevel]
          -- 'allDegreeSoFar' will hold this level open sets, plus the ones below it, they are not
          -- yet tested for validity.
-         allDegreeSoFar : List TopologyExtension :=
+         allDegreeSoFar : List SubTopology :=
            if topolAtLevel=[[]]
              then allOpenSetsBelowThis
              else
