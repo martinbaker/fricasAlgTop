@@ -41,11 +41,20 @@ SubTopology() : Exports == Impl where
       ++ lattice is complete lattice on given set
       ++ these are checked for disjointedness
 
+    constructCover : (osAtThisLevel:List Set NNI,osBelow:List Set NNI,grade:NNI) ->
+      Union(List %,String)
+        ++ Construct a set of sub-topologies that covers a given space
+        ++ This space is defined in terms of open sets of a given grade
+        ++ There is an additional test that the result is compatible with the open sets below this grade
+
     members1 : (s1:%) -> List NNI
       ++ all members in both lattice and extension
 
-    member1? : (x:NNI, s1:%) -> Boolean
-      ++ check x for membership of either lattice or extension
+    memberElement? : (x:NNI, s1:%) -> Boolean
+      ++ is an element a member of this sub-lattice
+
+    memberOpenSet? : (x:Set NNI, s1:%) -> Boolean
+      ++ is an open set a member of this sub-lattice
 
     empty1? : (s1 : %) -> Boolean
       ++ true if both lattice and extension are empty
@@ -59,12 +68,8 @@ SubTopology() : Exports == Impl where
     allOpenSets : (a:%) -> List List NNI
       ++ Power set of lattice + ext
 
-    join : (a:%, b:%) -> List Set NNI
-      ++ The union of two complete lattices is not necessarily a complete lattice
-      ++ so produce a list instead
-
-    meet : (a:%, b:%) -> List Set NNI
-      ++ The intersection of two complete lattices is not necessarily a complete lattice
+    join : (a:%, b:%) -> List %
+      ++ The union of two complete lattices is not closed
       ++ so produce a list instead
 
   Impl ==> add
@@ -109,12 +114,37 @@ SubTopology() : Exports == Impl where
      expanded:List List NNI := powerSet lat
      [concat(x,e) for x in expanded]
 
+   powerSetOfSets(s:List Set NNI) : List List Set NNI ==
+     empty? s => [s]
+     p:=powerSetOfSets(rest s)
+     concat(p,[cons(first s,x) for x in p])
+
+   sortMeets(a: Record(comb:List Set NNI,meetSet:Set NNI),_
+             b: Record(comb:List Set NNI,meetSet:Set NNI)) : Boolean ==
+     #(a.meetSet) < #(b.meetSet)
+
+   -- Construct a set of sub-topologies that covers a given space
+   -- This space is defined in terms of open sets of a given grade
+   -- There is an additional test that the result is compatible with the open sets below this grade
+   constructCover(osAtThisLevel:List Set NNI,osBelow:List Set NNI,grade:NNI) : _
+   Union(List %,String) ==
+     -- take all combinations
+     combs:List List Set NNI := powerSetOfSets(osAtThisLevel)
+     -- take meets of them
+     meets:List Record(comb:List Set NNI,meetSet:Set NNI) := [[x,reduce(intersect,x)] for x in combs]
+     -- order with longest first
+     orderedMeets:List Record(comb:List Set NNI,meetSet:Set NNI) := sort(sortMeets,meets)
+     -- add an entry
+     -- is it a cover yet
+     "failed"::Union(List %,String)
+
    -- meet of two sub topologies
    _/_\(a:%, b:%) : % ==
      aext:Set NNI := a.ext
      alat:Set NNI := a.lattice
      bext:Set NNI := b.ext
      blat:Set NNI := b.lattice
+     if (empty1? a) or (empty1? b) then return [set [],set []]
      if aext=bext
        then
          if alat=blat then return a
@@ -125,20 +155,14 @@ SubTopology() : Exports == Impl where
          return [union(m1,m2),set []]
      [set [],set []]
 
-   -- The union of two complete lattices is not necessarily a complete lattice
+   -- The union of two complete lattices is not closed
    -- so produce a list instead
-   join(a:%, b:%) : List Set NNI ==
-     a1:List List NNI := allOpenSets(a)
-     b1:List List NNI := allOpenSets(b)
-     res:List Set NNI := []
-     for osa in a1 repeat
-       for osb in b1 repeat
-         if #intersect(set osa,set osb) > 0
-           then
-             res := cons(set osa,res)
-             res := cons(set osb,res)
-           else res := cons(union(set osa,set osb),res)
-     res
+   join(a:%, b:%) : List % ==
+     if a=b then return [a]
+     if (empty1? a) and (empty1? b) then return []
+     if empty1? a then return [b]
+     if empty1? b then return [a]
+     [a,b]
 
    plusSeperatedList(ts:List OutputForm) : OutputForm ==
      res:List OutputForm := []
@@ -169,10 +193,16 @@ SubTopology() : Exports == Impl where
      s2:Set NNI := s1.ext
      concat(members(s),members(s2))
 
-   member1?(x:NNI, s1:%) : Boolean ==
+   -- is an element a member of this sub-lattice
+   memberElement?(x:NNI, s1:%) : Boolean ==
      for y in members1(s1) repeat
        if x=y then return true
      false
+
+   -- is an open set a member of this sub-lattice
+   memberOpenSet?(x:Set NNI, s1:%) : Boolean ==
+     oss : List Set NNI := [set y for y in allOpenSets(s1)]
+     member?(x,oss)
 
    empty1?(s1 : %) : Boolean ==
      empty?(s1.ext) and empty?(s1.lattice)
@@ -484,8 +514,7 @@ TopologyFinite() : Exports == Impl where
      intersections:List SubTopology := empty
      for x in top1 repeat
        for y in top1 repeat
-         -- intersec:SubTopology := x /\ y
-         intersec:List Set NNI := meet(x,y)
+         intersec:SubTopology := x /\ y
          --intersections := addIfNew2(intersections,intersec)
          -- ***************** needs fixing ************************
          -- print(message "x=" << x  << message " y="
@@ -563,7 +592,7 @@ TopologyFinite() : Exports == Impl where
      for x in allDegree for i in 1.. repeat
        for y in allDegree for i2 in 1.. repeat
          if i2>i then
-           osJoin:List Set NNI := join(x,y)
+           osJoin:List SubTopology := join(x,y)
            -- if cardinality1(osJoin) <= degree then -- can only check upto this degree
            --   if not entry?(osJoin,allDegree) then
            --     return false
@@ -600,8 +629,11 @@ TopologyFinite() : Exports == Impl where
      -- 'mustHaveSets' hold the open sets at this grade which have already been determined
      -- as necessary. This lets us quickly eliminate some invalid cases.
      mustHaveSets:List Set NNI := selectGrade(allOpenSetsBelowThis,degree)
-     -- print(message "allTopologiesRecursive allOpenSetsBelowThis=" << allOpenSetsBelowThis <<
-     --       message " mustHaveSets=" << mustHaveSets)
+     --print(message "allTopologiesRecursive allOpenSetsBelowThis=" << allOpenSetsBelowThis <<
+     --      message " thisLevel=" << thisLevel <<
+     --      message " mustHaveSets=" << mustHaveSets)
+     -- Now loop through all combinations at this grade
+     -- 'topolAtLevel' will be current combination of open sets at this grade
      for topolAtLevel in thisLevel repeat
        valid:Boolean := true
        if not (empty? mustHaveSets) then
@@ -611,10 +643,19 @@ TopologyFinite() : Exports == Impl where
        --      message " mustHaveSets=" << mustHaveSets <<
        --      message " valid=" << valid)
        if valid then
-         topolAtLevelExt: List SubTopology :=
-           if degree=1 and #topolAtLevel>1
-             then [subTopology(set [],set [if topolAtLevel=[] then [] else reduce(concat,topolAtLevel)])]
-             else [subTopology(set x,set []) for x in topolAtLevel]
+         -- 'topolAtLevelExt' is a list of sub topologies, based at this level, which are required
+         -- by the current selection
+         topolAtLevelExt: List SubTopology := []
+         if degree=1 and #topolAtLevel>1
+           then
+             topolAtLevelExt := [subTopology(set [],set [if topolAtLevel=[] then [] else reduce(concat,topolAtLevel)])]
+           else
+             topolAtLevelExt := [subTopology(set x,set []) for x in topolAtLevel]
+         -- *************** use memberOpenSet?(x:Set NNI, s1:%) to filter existing ****************
+         if degree=2 then
+            print(message "allTopologiesRecursive topolAtLevel=" << topolAtLevel <<
+              message " mustHaveSets=" << mustHaveSets <<
+              message " topolAtLevelExt=" << topolAtLevelExt)
          -- 'allDegreeSoFar' will hold this level open sets, plus the ones below it, they are not
          -- yet tested for validity.
          allDegreeSoFar : List SubTopology :=
