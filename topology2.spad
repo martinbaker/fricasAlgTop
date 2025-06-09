@@ -9,8 +9,10 @@
 -- allTopologiesOnSet [1,2,3,4]
 -- cc1 := constructCover([set [1],set [2],set [3]],[],1)
 -- cc2 := constructCover([set [1],set [2]],[],1)
+-- cc3 := constructCover([set [1]],[],1)
 -- constructCover([set [1,2],set [1,3],set [2,3]],cc1,2)
 -- constructCover([set [1,2],set [1,3],set [2,3]],cc2,2)
+-- constructCover([set [1,2]],cc3,2) -- *********************fails ****************
 -- validateTopologyList(allTopologiesOnSet [1,2,3,4],4)
 --
 -- test TopologyFinite
@@ -48,8 +50,9 @@ SubTopology() : Exports == Impl where
     constructCover : (osProposedForThisLevel:List Set NNI,subTopolBelow:List %,grade:NNI) ->
       Union(List %,String)
         ++ Construct a set of sub-topologies that covers a given space.
-        ++ This is a cover for a given grade built from the grade below it.
-        ++ Attempts to find smallest cover, but not guaranteed smallest as it does not do exhaustive search.
+        ++ This is a cover for a given grade, built from the grade below it.
+        ++ Attempts to find smallest cover, but not guaranteed smallest as
+        ++ it does not do exhaustive search.
 
     isCover? : (cover:List %,space:List Set NNI,grade:NNI) -> Boolean
       ++ return true if 'cover' is cover of given space
@@ -150,6 +153,15 @@ SubTopology() : Exports == Impl where
        if not member?(sp,oss) then return false
      true
 
+   missingCover(cover:List %,space:List Set NNI,grade:NNI) : List % ==
+     res : List % := []
+     oss : List Set NNI := [] -- all open sets in this cover
+     for c in cover repeat
+       oss := concat (oss,allOpenSets(c))
+     for sp in space repeat
+       if not member?(sp,oss) then res := cons(subTopology(sp,set []),res)
+     res
+
    -- returns true if a is subset of b
    isSubset?(a : %, b : %) : Boolean ==
      osa : List Set NNI := allOpenSets(a)
@@ -158,16 +170,27 @@ SubTopology() : Exports == Impl where
        if not member?(s,osb) then return false
      true
 
+   -- returns true if a is subset of b
+   isSubsetList?(a : %, b : List %) : Boolean ==
+     osa : List Set NNI := allOpenSets(a)
+     osb : List Set NNI := reduce(concat,[allOpenSets(b2) for b2 in b],[])
+     for s in osa repeat
+       if not member?(s,osb) then return false
+     true
+
+   -- add cover to subTopolBelow if new
    addSubTopolIfNew(cover:List %,subTopolBelow:List %) : List % ==
      res:List % := subTopolBelow
      for c in cover repeat
-       if not member?(c,subTopolBelow) then
+       if not isSubsetList?(c,subTopolBelow) then
+         -- if not member?(c,subTopolBelow) then
          res := cons(c,res)
      res
 
    -- Construct a set of sub-topologies that covers a given space
-   -- This space is defined in terms of open sets of a given grade
-   -- There is an additional test that the result is compatible with the open sets below this grade
+   -- This is a cover for a given grade, built from the grade below it.
+   -- Attempts to find smallest cover, but not guaranteed smallest as
+   -- it does not do exhaustive search.
    constructCover(osProposedForThisLevel:List Set NNI,subTopolBelow:List %,grade:NNI) : _
    Union(List %,String) ==
      osBelow:List Set NNI := []
@@ -175,29 +198,34 @@ SubTopology() : Exports == Impl where
        osBelow := concat(allOpenSets(t),osBelow)
      -- take all combinations
      combs:List List Set NNI := powerSetOfSets(osProposedForThisLevel)
-     if combs=[] then return "failed"::Union(List %,String)
+     -- if combs=[] then return "failed"::Union(List %,String)
      -- 'spaceSoFar' holds all open sets proposed upto this grade
-     spaceSoFar:List Set NNI := concat(osProposedForThisLevel,osBelow)
+     -- spaceSoFar:List Set NNI := concat(osProposedForThisLevel,osBelow)
      -- take meets of them
      meets:List Record(comb:List Set NNI,meetSet:Set NNI) :=
         [[x,reduce(intersect,x)] for x in combs | not(x=[])]
      -- order with longest first
      orderedMeets:List Record(comb:List Set NNI,meetSet:Set NNI) := sort(sortMeets,meets)
+     --if osProposedForThisLevel=[] then
+     --  print(message "constructCover osProposedForThisLevel=[] subTopolBelow=" << subTopolBelow <<
+     --        message " grade=" << grade <<
+     --        message " combs=" << combs <<
+     --        message " orderedMeets=" << orderedMeets)
      -- build up a cover
      cover:List % :=[]
-     for y in orderedMeets repeat
-       comb1:List Set NNI := y.comb
-       meet1:Set NNI := y.meetSet
-       -- remove meet1 from each of comb1 then take union
-       comb2:List Set NNI := [difference(s,meet1) for s in comb1]
-       comb3:Set NNI := reduce(union,comb2,set [])
-       if member?(meet1,osBelow) or meet1=set[] or empty?(meet1) or empty?(comb3) then
-         cover:=concat(subTopology(meet1,comb3),cover)
-       -- is it a cover yet
-       if isCover?(cover,spaceSoFar,grade) then
-         -- TODO need to check for duplicates ***************************************
-         return addSubTopolIfNew(cover,subTopolBelow)
-     "failed"::Union(List %,String)
+     y:Record(comb:List Set NNI,meetSet:Set NNI) := if #orderedMeets < 1
+       then [[],set []] -- "failed"::Union(List %,String)
+       else first orderedMeets
+     comb1:List Set NNI := y.comb
+     meet1:Set NNI := y.meetSet
+     -- remove meet1 from each of comb1 then take union
+     comb2:List Set NNI := [difference(s,meet1) for s in comb1]
+     comb3:Set NNI := reduce(union,comb2,set [])
+     if member?(meet1,osBelow) or meet1=set[] or empty?(meet1) or empty?(comb3) then
+       cover:=concat(subTopology(meet1,comb3),cover)
+     -- is it a cover yet
+     cover:=concat(missingCover(cover,osProposedForThisLevel,grade),cover)
+     return addSubTopolIfNew(cover,subTopolBelow)
 
    -- meet of two sub topologies
    _/_\(a:%, b:%) : % ==
@@ -596,8 +624,10 @@ TopologyFinite() : Exports == Impl where
      concat(p:=powerSet(rest s),[cons(first s,x) for x in p])
 
    powerSetOfLists(s:List List NNI) : List List List NNI ==
-     empty? s => [s]
+     empty? s => [[]]
      p:=powerSetOfLists(rest s)
+     --print(message "powerSetOfLists s=" << s <<
+     --      message " p=" << p)
      concat(p,[cons(first s,x) for x in p])
 
    -- Return all combinations of k from n
@@ -606,6 +636,7 @@ TopologyFinite() : Exports == Impl where
    kFromNCombinations(k1:NNI,n1:NNI) : List List NNI ==
      n:Integer := n1
      k:Integer := k1
+     if k1=0 then return []
      r : List List Integer :=
        [reverse subSet(n,k,i)$SymmetricGroupCombinatoricFunctions for
          i in 0..binomial(n,k)-1]
@@ -614,6 +645,8 @@ TopologyFinite() : Exports == Impl where
    -- Return combinations of all combinations of k from n
    -- if k=1 and n=3  then return [{1}],[{2}],[{3}],[{1},{2}] ... [{1},{2},{3}]
    kFromNCombComb(k1:NNI,n1:NNI) : List List List NNI ==
+     --print(message "kFromNCombComb k1=" << k1 <<
+     --      message " n1=" << n1)
      powerSetOfLists(kFromNCombinations(k1,n1))
 
    grade(s:List List NNI,x:NNI) : List List NNI ==
@@ -672,8 +705,6 @@ TopologyFinite() : Exports == Impl where
        res := concat(res,s)
      res
 
-
-
    -- Given all potential topologies containing upto 'degree-1' open sets add
    -- 'degree' open sets then call recursively until we get to 'maxDegree'.
    -- parameter 'allOpenSetsBelowThis' is all potential topologies containing only upto 'degree-1' open sets.
@@ -688,6 +719,10 @@ TopologyFinite() : Exports == Impl where
      thisLevel:List List List NNI := kFromNCombComb(degree,maxDegree)
      -- 'allValidTopol' will hold the open sets below this level plus
      -- this level open sets, if they pass validity test.
+     --if degree < 3 then
+     --   print(message "allTopologiesRecursive thisLevel=" << thisLevel <<
+     --         message " degree=" << degree)
+     --if degree > 2 then return []
      allValidTopol:List % := []
      --print(message "allTopologiesRecursive allOpenSetsBelowThis=" << allOpenSetsBelowThis <<
      --      message " thisLevel=" << thisLevel <<
@@ -700,13 +735,13 @@ TopologyFinite() : Exports == Impl where
        r := constructCover(osAtThisLevel,allOpenSetsBelowThis,degree)
        if r case (List SubTopology) then
          topolAtLevelExt := r
+         --print(message "allTopologiesRecursive topolAtLevelExt=" << topolAtLevelExt <<
+         --      message " osAtThisLevel=" << osAtThisLevel <<
+         --      message " allOpenSetsBelowThis=" << allOpenSetsBelowThis <<
+         --      message " degree=" << degree)
          validTopol : List % := allTopologiesRecursive(topolAtLevelExt,
                             degree+1,maxDegree)
          allValidTopol := concat(validTopol,allValidTopol)
-       print(message "allTopologiesRecursive allOpenSetsBelowThis=" << allOpenSetsBelowThis <<
-             message " degree=" << degree <<
-             message " topolAtLevel=" << topolAtLevel <<
-             message " allValidTopol=" << allValidTopol)
      allValidTopol
 
    -- Given a set, construct a list of all possible topologies on that set
@@ -719,7 +754,7 @@ TopologyFinite() : Exports == Impl where
      if dim=0 then return [topologyFinite [[]]]
      if dim=1 then return [topologyFinite cons([[]],[s])]
      -- start with degree 0, an empty open set
-     allTopologiesRecursive([[]],0,dim)
+     allTopologiesRecursive([],0,dim)
 
    -- Given a set, count all possible topologies on that set
    countAllTopologiesOnSet(s : List NNI) : NNI ==
