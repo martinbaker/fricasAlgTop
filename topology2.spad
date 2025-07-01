@@ -5,7 +5,7 @@
 --
 -- Here are some things to test the code:
 --
--- constructCover [1,2,3]
+-- allTopologiesOnSet [1,2,3]
 -- subTopology(set [[1]],set [[2,3]])
 -- cc1 := allLattices([1,2,3])
 -- allDivisionsSet([1,2,3])
@@ -43,6 +43,7 @@
 SubTopology() : Exports == Impl where
   NNI==> NonNegativeInteger
   x<<y ==> hconcat(x::OutputForm, y::OutputForm)
+  PARTITION ==> Record(result:List List NNI,complement:List NNI)
 
   Exports ==> MeetSemilattice with
 
@@ -54,21 +55,17 @@ SubTopology() : Exports == Impl where
 
     allDivisionsSet : (s1:List NNI) -> List List List NNI
 
-    allLattices : (topLevel:List NNI) ->
-      List Record(result:List List NNI,complement:List NNI)
+    allLattices : (topLevel:List NNI) -> List PARTITION
         ++ Construct a set of sub-topologies that covers a given space.
         ++ This is a cover for a given grade, built from the grade below it.
         ++ Attempts to find smallest cover, but not guaranteed smallest as
         ++ it does not do exhaustive search.
 
-    constructCover : (osProposedForThisLevel:List NNI) -> List %
+    constructCover : (osProposedForThisLevel:List NNI) -> List List %
         ++ Construct a set of sub-topologies that covers a given space.
         ++ This is a cover for a given grade, built from the grade below it.
         ++ Attempts to find smallest cover, but not guaranteed smallest as
         ++ it does not do exhaustive search.
-
-    isCover? : (cover:List %,space:List Set NNI,grade:NNI) -> Boolean
-      ++ return true if 'cover' is cover of given space
 
     members1 : (s1:%) -> List List NNI
       ++ all members in both lattice and extension
@@ -160,28 +157,6 @@ SubTopology() : Exports == Impl where
    sortMeets(a: List Set NNI,b: List Set NNI) : Boolean ==
      #a > #b
 
-)if false
-
-   isCover?(cover:List %,space:List Set NNI,grade:NNI) : Boolean ==
-     oss : List Set NNI := [] -- all open sets in this cover
-     for c in cover repeat
-       oss := concat (oss,allOpenSets(c))
-     for sp in space repeat
-       if not member?(sp,oss) then return false
-     true
-
-   -- returns a list of all open sets (as a sub-topology) not covered
-   missingCover(cover:List %,space:List Set NNI,grade:NNI) : List % ==
-     res : List % := []
-     oss : List Set NNI := [] -- all open sets in this cover
-     for c in cover repeat
-       oss := concat (oss,allOpenSets(c))
-     for sp in space repeat
-       if not member?(sp,oss) then res := cons(subTopology(sp,set []),res)
-     res
-
-)endif
-
    -- returns true if a is subset of b
    isSubset?(a : %, b : %) : Boolean ==
      osa : List Set List NNI := allOpenSets(a)
@@ -189,91 +164,6 @@ SubTopology() : Exports == Impl where
      for s in osa repeat
        if not member?(s,osb) then return false
      true
-
-   -- Given a set this function returns all its divisions that
-   -- contain all elements.
-   allDivisionsSetHelper(s:Record(result:List NNI,complement:List NNI)) : _
-        List Record(result:List NNI,complement:List NNI) ==
-     empty?(s.result) => [s]
-     f : NNI := first (s.result)
-     z : Record(result:List NNI,complement:List NNI) := [rest (s.result),cons(f,(s.complement))]
-     p : List Record(result:List NNI,complement:List NNI) := allDivisionsSetHelper(z)
-     res: List Record(result:List NNI,complement:List NNI) := copy p
-     for x in p repeat
-       c : List NNI := remove(f,x.complement)
-       r : List NNI := cons(f,x.result)
-       if r<c then
-         y : Record(result:List NNI,complement:List NNI) := [r,c]
-         res := cons(y,res)
-     res
-
-   -- Given a set this function returns all its divisions that
-   -- contain all elements.
-   allDivisionsSet(s1:List NNI) : List List List NNI ==
-     s:Record(result:List NNI,complement:List NNI) := [s1,[]]
-     r:List Record(result:List NNI,complement:List NNI) := allDivisionsSetHelper(s)
-     res:List List List NNI := []
-     for x in r repeat
-       r1:List NNI := x.result
-       c1:List NNI := x.complement
-       if #r1 > 1
-         then
-           r2: List List List NNI := allDivisionsSet(r1)
-           for r3 in r2 repeat
-             r4: List List NNI := concat(r3,c1)
-             -- print(message "allDivisionsSet r1=" << r1 << message " r2=" << r2 <<
-             --       message " r3=" << r3 << message " r4=" << r4 << message " c1=" << c1)
-             res := cons(r4,res)
-         else
-           if #r1=0
-             then
-               res := cons([c1],res)
-             else
-               res := cons([r1,c1],res)
-     res
-
-   -- Given a set this function returns all its subsets together with
-   -- their complement.
-   splitSet(s:Record(result:List NNI,complement:List NNI)) : _
-        List Record(result:List NNI,complement:List NNI) ==
-     empty?(s.result) => [s]
-     f : NNI := first (s.result)
-     z : Record(result:List NNI,complement:List NNI) := [rest (s.result),cons(f,(s.complement))]
-     p : List Record(result:List NNI,complement:List NNI) := splitSet(z)
-     res: List Record(result:List NNI,complement:List NNI) := copy p
-     for x in p repeat
-       c : List NNI := remove(f,x.complement)
-       y : Record(result:List NNI,complement:List NNI) := [cons(f,x.result),c]
-       res := cons(y,res)
-     reverse res
-
-   -- Construct a set of sub-topologies that covers a given space
-   -- This is a cover for a given grade, built from the grade below it.
-   -- Attempts to find smallest cover, but not guaranteed smallest as
-   -- it does not do exhaustive search.
-   allLattices(topLevel:List NNI) : _
-       List Record(result:List List NNI,complement:List NNI) ==
-     if empty?(topLevel) then return []
-     p : Record(result:List NNI,complement:List NNI) := [topLevel,[]]
-     ps : List Record(result:List NNI,complement:List NNI) := splitSet(p)
-     res : List Record(result:List List NNI,complement:List NNI) := []
-     for x in ps repeat
-       r:List NNI := x.result
-       d:List List List NNI := allDivisionsSet(reverse r)
-       c:List NNI := x.complement
-       for d2 in d repeat
-         y:Record(result:List List NNI,complement:List NNI) := [d2,c]
-         res := concat(res,y)
-     res
-
-   -- Construct a set of sub-topologies that covers a given space
-   -- This is a cover for a given grade, built from the grade below it.
-   -- Attempts to find smallest cover, but not guaranteed smallest as
-   -- it does not do exhaustive search.
-   constructCover(topLevel:List NNI) : List % ==
-     if empty?(topLevel) then return []
-     r : List Record(result:List List NNI,complement:List NNI) := allLattices(topLevel)
-     [subTopology(set [],set [r2.result]) for r2 in r]
 
    -- meet of two sub-topologies
    _/_\(a:%, b:%) : % ==
@@ -387,6 +277,7 @@ SubTopology() : Exports == Impl where
 TopologyFinite() : Exports == Impl where
   NNI==> NonNegativeInteger
   x<<y ==> hconcat(x::OutputForm, y::OutputForm)
+  PARTITION ==> Record(result:List List NNI,complement:List NNI)
 
   Exports ==> SetCategory() with
 
@@ -579,7 +470,7 @@ TopologyFinite() : Exports == Impl where
    coerce(x : %) : OutputForm ==
      x1:List SubTopology := x.topology
      msg:OutputForm := if x.basis then message "basis=" else message "topology="
-     msg << bracket[(a::OutputForm) for a in x1]
+     msg << vconcat[(a::OutputForm) for a in x1]
 
    _=(a:%,b:%) : Boolean ==
      a=b
@@ -590,6 +481,107 @@ TopologyFinite() : Exports == Impl where
      for x in top1 repeat
        if cardinality1(x)$SubTopology > numEle then numEle := cardinality1(x)$SubTopology
      numEle
+
+   -- Given a set this function returns all its divisions that
+   -- contain all elements.
+   allDivisionsSetHelper(s:Record(result:List NNI,complement:List NNI)) : _
+        List Record(result:List NNI,complement:List NNI) ==
+     empty?(s.result) => [s]
+     f : NNI := first (s.result)
+     z : Record(result:List NNI,complement:List NNI) := [rest (s.result),cons(f,(s.complement))]
+     p : List Record(result:List NNI,complement:List NNI) := allDivisionsSetHelper(z)
+     res: List Record(result:List NNI,complement:List NNI) := copy p
+     for x in p repeat
+       c : List NNI := remove(f,x.complement)
+       r : List NNI := cons(f,x.result)
+       if r<c then
+         y : Record(result:List NNI,complement:List NNI) := [r,c]
+         res := cons(y,res)
+     res
+
+   -- Given a set this function returns all its divisions that
+   -- contain all elements.
+   allDivisionsSet(s1:List NNI) : List List List NNI ==
+     s:Record(result:List NNI,complement:List NNI) := [s1,[]]
+     r:List Record(result:List NNI,complement:List NNI) := allDivisionsSetHelper(s)
+     res:List List List NNI := []
+     for x in r repeat
+       r1:List NNI := x.result
+       c1:List NNI := x.complement
+       if #r1 > 1
+         then
+           r2: List List List NNI := allDivisionsSet(r1)
+           for r3 in r2 repeat
+             r4: List List NNI := concat(r3,c1)
+             -- print(message "allDivisionsSet r1=" << r1 << message " r2=" << r2 <<
+             --       message " r3=" << r3 << message " r4=" << r4 << message " c1=" << c1)
+             res := cons(r4,res)
+         else
+           if #r1=0
+             then
+               res := cons([c1],res)
+             else
+               res := cons([r1,c1],res)
+     res
+
+   -- Given a set this function returns all its subsets together with
+   -- their complement.
+   splitSet(s:Record(result:List NNI,complement:List NNI)) : _
+        List Record(result:List NNI,complement:List NNI) ==
+     empty?(s.result) => [s]
+     f : NNI := first (s.result)
+     z : Record(result:List NNI,complement:List NNI) := [rest (s.result),cons(f,(s.complement))]
+     p : List Record(result:List NNI,complement:List NNI) := splitSet(z)
+     res: List Record(result:List NNI,complement:List NNI) := copy p
+     for x in p repeat
+       c : List NNI := remove(f,x.complement)
+       y : Record(result:List NNI,complement:List NNI) := [cons(f,x.result),c]
+       res := cons(y,res)
+     reverse res
+
+   -- Construct a set of sub-topologies that covers a given space
+   -- This is a cover for a given grade, built from the grade below it.
+   -- Attempts to find smallest cover, but not guaranteed smallest as
+   -- it does not do exhaustive search.
+   allLattices(topLevel:List NNI) : List PARTITION ==
+     if empty?(topLevel) then return []
+     p : Record(result:List NNI,complement:List NNI) := [topLevel,[]]
+     ps : List Record(result:List NNI,complement:List NNI) := splitSet(p)
+     res : List PARTITION := []
+     for x in ps repeat
+       r:List NNI := x.result
+       d:List List List NNI := allDivisionsSet(reverse r)
+       c:List NNI := x.complement
+       for d2 in d repeat
+         y:PARTITION := [d2,c]
+         res := concat(res,y)
+     res
+
+   addLatticeToCover(p:PARTITION) : % ==
+     comp:List NNI := p.complement
+     resu:List List NNI := p.result
+     topologyFinite2 [subTopology(set [],set [resu])]
+
+   -- Construct a set of sub-topologies that covers a given space
+   -- This is a cover for a given grade, built from the grade below it.
+   -- Attempts to find smallest cover, but not guaranteed smallest as
+   -- it does not do exhaustive search.
+   constructCover(topLevel:List NNI) : List % ==
+     if empty?(topLevel) then return []
+     r : List PARTITION := allLattices(topLevel)
+     res:List % := []
+     for r2 in r repeat
+       res := concat(addLatticeToCover(r2),res)
+     res
+
+   -- Given a set, construct a list of all possible topologies on that set
+   -- Warning: This function can return very long lists, if the input set is 6 or
+   -- more elements then the computer may run out of resources and crash.
+   -- I have written an explanation of this algorithm on the web page here:
+   -- https://www.euclideanspace.com/maths/topology/topologicalSpace/finite/all/index.htm
+   allTopologiesOnSet(s : List NNI) : List % ==
+     x : List % := constructCover(s)
+     -- res : List % := [topologyFinite2(y) for y in x]
 
 --Copyright (c) 2025, Martin J Baker.
 --All rights reserved.
