@@ -53,20 +53,6 @@ SubTopology() : Exports == Impl where
       ++ finish is complete lattice on given set
       ++ these are checked for disjointedness
 
-    allDivisionsSet : (s1:List NNI) -> List List List NNI
-
-    allLattices : (topLevel:List NNI) -> List PARTITION
-        ++ Construct a set of sub-topologies that covers a given space.
-        ++ This is a cover for a given grade, built from the grade below it.
-        ++ Attempts to find smallest cover, but not guaranteed smallest as
-        ++ it does not do exhaustive search.
-
-    constructCover : (osProposedForThisLevel:List NNI) -> List List %
-        ++ Construct a set of sub-topologies that covers a given space.
-        ++ This is a cover for a given grade, built from the grade below it.
-        ++ Attempts to find smallest cover, but not guaranteed smallest as
-        ++ it does not do exhaustive search.
-
     members1 : (s1:%) -> List List NNI
       ++ all members in both lattice and extension
 
@@ -188,26 +174,25 @@ SubTopology() : Exports == Impl where
      if empty1? b then return [a]
      [a,b]
 
-   plusSeperatedList(ts:List OutputForm) : OutputForm ==
+   customSeperatedList(ts:List OutputForm,seperator:String) : OutputForm ==
      res:List OutputForm := []
-     if #ts=1 then
-       return first ts
+     #ts=1 => first ts
      for t in ts for i in 1.. repeat
        if i=1
          then res := cons(t,res)
          else
-           res := cons(message "+",res)
+           res := cons(message seperator,res)
            res := cons(t,res)
      hconcat (reverse res)
 
    formatInner(osin:List NNI) : OutputForm ==
      #osin=0 => message "0"
      #osin=1 => (first osin)::OutputForm
-     osin::OutputForm
+     customSeperatedList([x::OutputForm for x in osin],"\/")
 
    formatOS(os:List List NNI) : OutputForm ==
      os2:List OutputForm := [formatInner(x) for x in os]
-     plusSeperatedList os2
+     customSeperatedList(os2,"+")
 
    coerce(s : %) : OutputForm ==
      st : List List NNI := parts (s.start)
@@ -310,6 +295,12 @@ TopologyFinite() : Exports == Impl where
       ++ check this topology has all meets and joins
       ++ also check for duplicates
 
+    allLattices : (start:List NNI,finish:List NNI) -> List PARTITION
+        ++ Construct a set of sub-topologies that covers a given space.
+        ++ This is a cover for a given grade, built from the grade below it.
+        ++ Attempts to find smallest cover, but not guaranteed smallest as
+        ++ it does not do exhaustive search.
+
     getTopology : (a:%) -> List List NNI
       ++ returns open sets as list of list
 
@@ -346,6 +337,7 @@ TopologyFinite() : Exports == Impl where
       ++ more elements then the computer may run out of resources and crash.
       ++ I have written an explanation of this algorithm on the web page here:
       ++ https://www.euclideanspace.com/maths/topology/topologicalSpace/finite/all/index.htm
+      ++ Construct a set of sub-topologies that covers a given space
 
     countAllTopologiesOnSet : (s : List NNI) -> NNI
       ++ Given a set count all possible topologies on that set
@@ -543,9 +535,9 @@ TopologyFinite() : Exports == Impl where
    -- This is a cover for a given grade, built from the grade below it.
    -- Attempts to find smallest cover, but not guaranteed smallest as
    -- it does not do exhaustive search.
-   allLattices(topLevel:List NNI) : List PARTITION ==
-     if empty?(topLevel) then return []
-     p : Record(result:List NNI,complement:List NNI) := [topLevel,[]]
+   allLattices(start:List NNI,finish:List NNI) : List PARTITION ==
+     if empty?(finish) then return []
+     p : Record(result:List NNI,complement:List NNI) := [finish,[]]
      ps : List Record(result:List NNI,complement:List NNI) := splitSet(p)
      res : List PARTITION := []
      for x in ps repeat
@@ -557,31 +549,38 @@ TopologyFinite() : Exports == Impl where
          res := concat(res,y)
      res
 
-   addLatticeToCover(p:PARTITION) : % ==
-     comp:List NNI := p.complement
-     resu:List List NNI := p.result
-     topologyFinite2 [subTopology(set [],set [resu])]
-
-   -- Construct a set of sub-topologies that covers a given space
-   -- This is a cover for a given grade, built from the grade below it.
-   -- Attempts to find smallest cover, but not guaranteed smallest as
-   -- it does not do exhaustive search.
-   constructCover(topLevel:List NNI) : List % ==
-     if empty?(topLevel) then return []
-     r : List PARTITION := allLattices(topLevel)
-     res:List % := []
-     for r2 in r repeat
-       res := concat(addLatticeToCover(r2),res)
-     res
-
    -- Given a set, construct a list of all possible topologies on that set
    -- Warning: This function can return very long lists, if the input set is 6 or
    -- more elements then the computer may run out of resources and crash.
    -- I have written an explanation of this algorithm on the web page here:
    -- https://www.euclideanspace.com/maths/topology/topologicalSpace/finite/all/index.htm
-   allTopologiesOnSet(s : List NNI) : List % ==
-     x : List % := constructCover(s)
-     -- res : List % := [topologyFinite2(y) for y in x]
+   -- Construct a set of sub-topologies that covers a given space
+   allTopologiesOnSet(topLevel : List NNI) : List % ==
+     if empty?(topLevel) then return []
+     r : List PARTITION := allLattices([],topLevel)
+     res:List % := []
+     for r2 in r repeat
+       comp:List NNI := r2.complement
+       resu:List List NNI := r2.result
+       if (empty?(comp) or empty?(resu) or resu=[[]])
+         then
+           res := concat(topologyFinite2 [subTopology(set [],set [resu])],res)
+         else
+           for zs in resu repeat
+             z:NNI := 0
+             if #zs=1 then z:=first zs
+             newFinish : List NNI := topLevel
+             for z in zs repeat newFinish := remove(z,newFinish)
+             newr : List PARTITION := allLattices([],newFinish)
+             for newr2 in newr repeat
+               subTopologies:List SubTopology := [subTopology(set [],set [resu])]
+               newcomp:List NNI := newr2.complement
+               newresu:List List NNI := newr2.result
+               if not (empty?(zs) or empty?(newresu) or newresu=[[]]) then
+                 subTopologies := cons(subTopology(set [zs],set [newresu]),subTopologies)
+               r3 := topologyFinite2 subTopologies
+               res := concat(r3,res)
+     res
 
 --Copyright (c) 2025, Martin J Baker.
 --All rights reserved.
