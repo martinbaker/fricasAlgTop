@@ -86,6 +86,10 @@ SubTopology() : Exports == Impl where
       ++ The union of two complete lattices is not closed
       ++ so produce a list instead
 
+    setComplement : (topLevel : List NNI,thisLattice:%) -> List NNI
+      ++ Gather all elements included in thisLattice and then take the complement
+      ++ to determine missing elements.
+
   Impl ==> add
 
    -- finish represents complete lattice on given set
@@ -248,6 +252,19 @@ SubTopology() : Exports == Impl where
      if cardinality(s)=degree then res:= cons(s,res)
      res
 
+   -- gather all elements included in thisLattice and then take the complement
+   -- to determine missing elements
+   setComplement(topLevel : List NNI,thisLattice:%) : List NNI ==
+     openSets:List List NNI := members1(thisLattice)
+     elements : List NNI := if empty?(openSets) then [] else reduce(setUnion,openSets)
+     c : List NNI := copy topLevel
+     for x in elements repeat
+       c:= remove(x,c)
+     -- print(message "setComplement topLevel=" << topLevel <<
+     --      message " elements=" << elements << message " c=" << c)
+     c
+
+
 )abbrev domain TOPFIN TopologyFinite
 ++ Author: Martin Baker
 ++ Description:
@@ -333,15 +350,15 @@ TopologyFinite() : Exports == Impl where
 
     allTopologiesOnSet : (s : List NNI) -> List %
       ++ Given a set construct a list of all possible topologies on that set
+      ++ Each of these topologies is made up from sub-topologies (complete lattices)
+      ++ that cover the space.
       ++ Warning: This function can return very long lists, if the input set is 6 or
       ++ more elements then the computer may run out of resources and crash.
       ++ I have written an explanation of this algorithm on the web page here:
-      ++ https://www.euclideanspace.com/maths/topology/topologicalSpace/finite/all/index.htm
-      ++ Construct a set of sub-topologies that covers a given space
+      ++ https://www.euclideanspace.com/maths/topology/topologicalSpace/finite/extension/index.htm
 
     countAllTopologiesOnSet : (s : List NNI) -> NNI
       ++ Given a set count all possible topologies on that set
-
 
   Impl ==> add
 
@@ -352,6 +369,14 @@ TopologyFinite() : Exports == Impl where
    -- returns open sets as list of set
    getOpenSets(a:%) : List SubTopology ==
      a.topology
+
+   getTopology(a:%) : List List NNI ==
+     sub : List SubTopology := a.topology
+     res : List List NNI := []
+     for x in sub repeat
+       m:List List NNI := members1(x)
+       res := concat (m,res)
+     res
 
    setTopologyFromList(t:List(List(NNI))) : List SubTopology ==
      [subTopology(set [a],set []) for a in t]
@@ -549,37 +574,89 @@ TopologyFinite() : Exports == Impl where
          res := concat(res,y)
      res
 
+   -- join 'a' and 'b'
+   -- uses weak distributive rule
+   joinEle(a:List List NNI,b:List List NNI) : List List List NNI ==
+     if a=[] or a=[[]] then return [b]
+     if b=[] or b=[[]] then return [a]
+     res: List List List NNI := []
+     for a1 in a repeat
+       for b1 in b repeat
+         a2:List List NNI := remove(a1,a)
+         b2:List List NNI := remove(b1,b)
+         d:List List NNI := [concat(a1,b1)]
+         d := concat(a2,d)
+         d := concat(b2,d)
+         res := cons(d,res)
+     -- print(message "joinEle a=" << a << message " b=" << b << message " res=" << reverse res)
+     reverse res
+
+   -- join 'a' to each element of vector
+   joinVector(a:List List NNI,vec:List List List NNI) : List List List NNI ==
+     if a=[] or a=[[]] then return vec
+     res : List List List NNI := []
+     for v in vec repeat
+       res := concat(joinEle(a,v),res)
+     res
+
+   -- add 'a' to 'b'
+   addEle(a:List List NNI,b:List List NNI) : List List NNI ==
+     -- print(message "addEle a=" << a << message " b=" << b)
+     if b=[] or b=[[]] then return []
+     concat(a,b)
+
+   -- add 'a' to each element of vector
+   addVector(a:List List NNI,vec:List List List NNI) : List List List NNI ==
+     if a=[] or a=[[]] then return []
+     [addEle(a,v) for v in vec | not (v=[] or v=[[]])]
+
+   nextVector(a:List List NNI,vec:List List List NNI) : List List List NNI ==
+     res : List List List NNI := vec
+     addv : List List List NNI := addVector(a,vec)
+     joinv : List List List NNI := joinVector(a,vec)
+     -- print(message "nextVector a=" << a << message " vec=" << vec <<
+     --      message " addv=" << addv << message " joinv" << joinv)
+     res := concat(addv,res)
+     res := concat(joinv,res)
+     res
+
+   -- All sets of open sets where each element is included 0 or 1 times but
+   -- not more.
+   allSetsOfOpenSetsNoDuplicates(start:List NNI,finish:List NNI) : List List List NNI ==
+     if #finish < 1 then return []
+     res : List List List NNI := []
+     for ele in finish repeat
+       if empty? res
+         then res := [[],[[ele]]]
+         else res := nextVector([[ele]],res)
+     res
+
    -- Given a set, construct a list of all possible topologies on that set
+   -- Each of these topologies is made up from sub-topologies (complete lattices)
+   -- that cover the space.
    -- Warning: This function can return very long lists, if the input set is 6 or
    -- more elements then the computer may run out of resources and crash.
    -- I have written an explanation of this algorithm on the web page here:
-   -- https://www.euclideanspace.com/maths/topology/topologicalSpace/finite/all/index.htm
-   -- Construct a set of sub-topologies that covers a given space
+   -- https://www.euclideanspace.com/maths/topology/topologicalSpace/finite/extension/index.htm
    allTopologiesOnSet(topLevel : List NNI) : List % ==
-     if empty?(topLevel) then return []
-     r : List PARTITION := allLattices([],topLevel)
-     res:List % := []
-     for r2 in r repeat
-       comp:List NNI := r2.complement
-       resu:List List NNI := r2.result
-       if (empty?(comp) or empty?(resu) or resu=[[]])
+     all : List List List NNI := allSetsOfOpenSetsNoDuplicates([],topLevel)
+     res : List % := []
+     for t in all repeat
+       thisLattice : SubTopology := subTopology(set [],set t)
+       c : List NNI := setComplement(topLevel,thisLattice)
+       if empty?(c)
          then
-           res := concat(topologyFinite2 [subTopology(set [],set [resu])],res)
+           res := cons(topologyFinite2 [thisLattice],res)
          else
-           for zs in resu repeat
-             z:NNI := 0
-             if #zs=1 then z:=first zs
-             newFinish : List NNI := topLevel
-             for z in zs repeat newFinish := remove(z,newFinish)
-             newr : List PARTITION := allLattices([],newFinish)
-             for newr2 in newr repeat
-               subTopologies:List SubTopology := [subTopology(set [],set [resu])]
-               newcomp:List NNI := newr2.complement
-               newresu:List List NNI := newr2.result
-               if not (empty?(zs) or empty?(newresu) or newresu=[[]]) then
-                 subTopologies := cons(subTopology(set [zs],set [newresu]),subTopologies)
-               r3 := topologyFinite2 subTopologies
-               res := concat(r3,res)
+           level2 : List List List NNI := allSetsOfOpenSetsNoDuplicates([],c)
+           os2 : List SubTopology := []
+           for x in level2 repeat
+             st:Set List NNI := set t
+             fi:Set List NNI := set x
+             -- os2 := cons(subTopology(st,fi),os2)
+           os : List SubTopology := [thisLattice]
+           t:% := topologyFinite2 concat(os,os2)
+           res := cons(t,res)
      res
 
 --Copyright (c) 2025, Martin J Baker.
