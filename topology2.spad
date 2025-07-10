@@ -30,12 +30,12 @@
 )abbrev domain TOPEXT SubTopology
 ++ Author: Martin Baker
 ++ Description:
-++   This is a complete lattice in that it has all meets and joins of open sets.
+++   This is a complete lattice of open sets, in that it has all meets and joins of open sets.
 ++   These meets and joins can be extended to the whole topology, so it is a sub-topology.
 ++   We can also define meets and joins of the sub-topologies themselves, these are only
 ++   closed for meets so, for whole sub-topologies, it is a MeetSemilattice.
-++   Joins of whole sub-topologies are sets of sub-topologies, this is like glueing
-++   sub-topologies together.
+++   Joins of whole sub-topologies are not closed but are sets of sub-topologies, this is
+++   like glueing sub-topologies together.
 ++   for more documentation see:
 ++ References:
 ++   https://www.euclideanspace.com/prog/scratchpad/mycode/topology/finite/
@@ -48,9 +48,10 @@ SubTopology() : Exports == Impl where
   Exports ==> MeetSemilattice with
 
     subTopology : (start:Set List NNI,finish:Set List NNI) -> %
-      ++ constructor: parameters are:
-      ++ start is extension set
-      ++ finish is complete lattice on given set
+      ++ constructor: parameters are -
+      ++ start: is extension set. This is an open set which is included in every
+      ++        node so we factor it out to here.
+      ++ finish: is complete lattice on given set
       ++ these are checked for disjointedness
 
     members1 : (s1:%) -> List List NNI
@@ -632,6 +633,40 @@ TopologyFinite() : Exports == Impl where
      res
 
    -- Given a set, construct a list of all possible topologies on that set
+   -- Each of these topologies is made up from sub-topologies (complete lattices of open sets)
+   -- that cover the space.
+   -- Warning: This function can return very long lists, if the input set is 6 or
+   -- more elements then the computer may run out of resources and crash.
+   -- I have written an explanation of this algorithm on the web page here:
+   -- https://www.euclideanspace.com/maths/topology/topologicalSpace/finite/extension/index.htm
+   allTopologiesOnSet(topLevel : List NNI) : List % ==
+     all : List List List NNI := allSetsOfOpenSetsNoDuplicates([],topLevel)
+     res : List % := []
+     for sl in all repeat
+       thisSL : SubTopology := subTopology(set [],set sl)
+       allNodes : List List List NNI := allOpenLists thisSL
+       print(message "allTopologiesOnSet thisSL=" << thisSL << message " allNodes=" << allNodes)
+       for node in allNodes repeat
+         if not node=[] then
+           target : List NNI := copy topLevel
+           for os in node repeat
+             for ele in os repeat
+               target := remove(ele,target)
+           print(message "allTopologiesOnSet node=" << node << message " target=" << target)
+           if not target=[] then
+             suball : List List List NNI := allSetsOfOpenSetsNoDuplicates([],target)
+             print(message "allTopologiesOnSet suball=" << suball)
+             for x in suball repeat
+               if not x=[] then
+                 subthisSL : SubTopology := subTopology(set node,set x)
+                 t:% := topologyFinite2 cons(thisSL,[subthisSL])
+                 print(message "allTopologiesOnSet thisSL=" << thisSL << message " subthisSL=" << subthisSL)
+                 res := cons(t,res)
+     res
+
+)if false
+
+   -- Given a set, construct a list of all possible topologies on that set
    -- Each of these topologies is made up from sub-topologies (complete lattices)
    -- that cover the space.
    -- Warning: This function can return very long lists, if the input set is 6 or
@@ -658,6 +693,8 @@ TopologyFinite() : Exports == Impl where
            t:% := topologyFinite2 concat(os,os2)
            res := cons(t,res)
      res
+
+)endif
 
 --Copyright (c) 2025, Martin J Baker.
 --All rights reserved.
