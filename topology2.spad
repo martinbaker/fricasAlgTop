@@ -83,6 +83,8 @@ SubTopology() : Exports == Impl where
 
     allOpenSets : (a:%) -> List Set List NNI
 
+    top : (a:%) -> List NNI
+
     join : (a:%, b:%) -> List %
       ++ The union of two complete lattices is not closed
       ++ so produce a list instead
@@ -155,6 +157,12 @@ SubTopology() : Exports == Impl where
      for s in osa repeat
        if not member?(s,osb) then return false
      true
+
+   top(a:%) : List NNI ==
+     m : List List NNI := members1(a)
+     if m=[] or m=[[]] then return []
+     r : List NNI := reduce(setUnion,m)
+     sort r
 
    -- meet of two sub-topologies
    _/_\(a:%, b:%) : % ==
@@ -488,7 +496,7 @@ TopologyFinite() : Exports == Impl where
    coerce(x : %) : OutputForm ==
      x1:List SubTopology := x.topology
      msg:OutputForm := if x.basis then message "basis=" else message "topology="
-     msg << vconcat[(a::OutputForm) for a in x1]
+     msg << bracket[(a::OutputForm) for a in x1]
 
    _=(a:%,b:%) : Boolean ==
      a=b
@@ -632,6 +640,59 @@ TopologyFinite() : Exports == Impl where
          else res := nextVector([[ele]],res)
      res
 
+   setSubtract(a : List NNI,b : List NNI) : List NNI ==
+     res : List NNI := a
+     for b1 in b repeat
+       res := remove(b1,res)
+     res
+
+   -- Recursively called to construct a list of all possible topologies on that set.
+   -- Parameters:
+   -- topLevel - set of elements to construct over.
+   -- bottom - bottom elements of this lattice.
+   -- thisRemainder - open set containing elements yet to be covered
+   -- subTopologyStack - A list of the subTopologys below this.
+   allTopologies(level:NNI,topLevel : List NNI,bottom : List List NNI,thisRemainder : List NNI,
+        subTopologyStack : List SubTopology,
+        topologyStack : List List SubTopology) : List List SubTopology ==
+     res:List List SubTopology := topologyStack
+     all : List List List NNI := allSetsOfOpenSetsNoDuplicates([],thisRemainder)
+     print(message "allTopologies level=" << level <<
+           message " topLevel=" << topLevel <<
+           message " bottom=" << bottom <<
+           message " thisRemainder=" << thisRemainder <<
+           message " subTopologyStack=" << subTopologyStack <<
+           message " topologyStack=" << topologyStack <<
+           message " all=" << all)
+     for lattice in all repeat
+       innerRes:List SubTopology := subTopologyStack
+       if not lattice=[] then
+         thisSL : SubTopology := subTopology(set bottom,set lattice)
+         -- print(message "  thisSL=" << thisSL << message " lattice=" << lattice)
+         thisTop : List NNI := top thisSL
+         newRemainder : List NNI := setSubtract(topLevel,thisTop)
+         innerRes := cons(thisSL,innerRes)
+         if thisTop=topLevel
+           then
+             res := cons(reverse innerRes,res)
+             -- print(message "  thisSL=" << thisSL << message " innerRes=" << innerRes)
+           else
+             allNodes : List List List NNI := allOpenLists thisSL
+             for node in allNodes repeat
+               if not node=[] then
+                 target : List NNI := copy topLevel
+                 for os in node repeat
+                   target := setSubtract(target,os)
+                 -- print(message "    node=" << node << message " target=" << target)
+                 if (target=[] or (sort target)=topLevel)
+                   then
+                     innerRes := cons(thisSL,innerRes)
+                   else
+                     -- print(message "    bottom=" << bottom << message " thisTop=" << thisTop)
+                     if level<3 then
+                       res := allTopologies(level+1,topLevel,node,newRemainder,innerRes,res)
+     res
+
    -- Given a set, construct a list of all possible topologies on that set
    -- Each of these topologies is made up from sub-topologies (complete lattices of open sets)
    -- that cover the space.
@@ -640,58 +701,53 @@ TopologyFinite() : Exports == Impl where
    -- I have written an explanation of this algorithm on the web page here:
    -- https://www.euclideanspace.com/maths/topology/topologicalSpace/finite/extension/index.htm
    allTopologiesOnSet(topLevel : List NNI) : List % ==
-     all : List List List NNI := allSetsOfOpenSetsNoDuplicates([],topLevel)
+     node : List List NNI := []
+     subTopologyStack : List SubTopology := []
+     topologyStack : List List SubTopology := []
+     topologyStack := allTopologies(1,topLevel,node,topLevel,subTopologyStack,topologyStack)
      res : List % := []
-     for sl in all repeat
-       thisSL : SubTopology := subTopology(set [],set sl)
-       allNodes : List List List NNI := allOpenLists thisSL
-       print(message "allTopologiesOnSet thisSL=" << thisSL << message " allNodes=" << allNodes)
-       for node in allNodes repeat
-         if not node=[] then
-           target : List NNI := copy topLevel
-           for os in node repeat
-             for ele in os repeat
-               target := remove(ele,target)
-           print(message "allTopologiesOnSet node=" << node << message " target=" << target)
-           if not target=[] then
-             suball : List List List NNI := allSetsOfOpenSetsNoDuplicates([],target)
-             print(message "allTopologiesOnSet suball=" << suball)
-             for x in suball repeat
-               if not x=[] then
-                 subthisSL : SubTopology := subTopology(set node,set x)
-                 t:% := topologyFinite2 cons(thisSL,[subthisSL])
-                 print(message "allTopologiesOnSet thisSL=" << thisSL << message " subthisSL=" << subthisSL)
-                 res := cons(t,res)
+     for x in topologyStack repeat
+       t:% := topologyFinite2 x
+       res := cons(t,res)
      res
 
 )if false
 
    -- Given a set, construct a list of all possible topologies on that set
-   -- Each of these topologies is made up from sub-topologies (complete lattices)
+   -- Each of these topologies is made up from sub-topologies (complete lattices of open sets)
    -- that cover the space.
    -- Warning: This function can return very long lists, if the input set is 6 or
    -- more elements then the computer may run out of resources and crash.
    -- I have written an explanation of this algorithm on the web page here:
    -- https://www.euclideanspace.com/maths/topology/topologicalSpace/finite/extension/index.htm
    allTopologiesOnSet(topLevel : List NNI) : List % ==
+     subTopologyStack : List SubTopology := []
      all : List List List NNI := allSetsOfOpenSetsNoDuplicates([],topLevel)
+     print(message "allTopologiesOnSet all=" << all)
      res : List % := []
-     for t in all repeat
-       thisLattice : SubTopology := subTopology(set [],set t)
-       c : List NNI := setComplement(topLevel,thisLattice)
-       if empty?(c)
-         then
-           res := cons(topologyFinite2 [thisLattice],res)
+     for sl in all repeat
+       thisSL : SubTopology := subTopology(set [],set sl)
+       subTopologyStack := [thisSL]
+       thisTop : List NNI := top thisSL
+       thisRemainder : List NNI := setSubtract(topLevel,thisTop)
+       if thisTop=topLevel
+         then res := cons(topologyFinite2 [thisSL],res)
          else
-           level2 : List List List NNI := allSetsOfOpenSetsNoDuplicates([],c)
-           os2 : List SubTopology := []
-           for x in level2 repeat
-             st:Set List NNI := set t
-             fi:Set List NNI := set x
-             -- os2 := cons(subTopology(st,fi),os2)
-           os : List SubTopology := [thisLattice]
-           t:% := topologyFinite2 concat(os,os2)
-           res := cons(t,res)
+           allNodes : List List List NNI := allOpenLists thisSL
+           print(message "  thisSL=" << thisSL << message " allNodes=" << allNodes)
+           for node in allNodes repeat
+             if not node=[] then
+               target : List NNI := copy topLevel
+               for os in node repeat
+                 target := setSubtract(target,os)
+               print(message "    node=" << node << message " target=" << target)
+               if (target=[] or (sort target)=topLevel)
+                 then
+                   res := cons(topologyFinite2 [thisSL],res)
+                 else
+                   subTopologyStack := allTopologies(topLevel,node,thisRemainder,subTopologyStack)
+                   t:% := topologyFinite2 subTopologyStack
+                   res := cons(t,res)
      res
 
 )endif
