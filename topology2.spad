@@ -6,7 +6,8 @@
 -- Here are some things to test the code:
 --
 -- allTopologiesOnSet [1,2,3]
--- subTopology(set [[1]],set [[2,3]])
+-- b := subTopology([1],set [[2,3]])
+-- existingSupersets([2],b)
 -- cc1 := allLattices([1,2,3])
 -- allDivisionsSet([1,2,3])
 --
@@ -34,8 +35,8 @@
 ++   These meets and joins can be extended to the whole topology, so it is a sub-topology.
 ++   We can also define meets and joins of the sub-topologies themselves, these are only
 ++   closed for meets so, for whole sub-topologies, it is a MeetSemilattice.
-++   Joins of whole sub-topologies are not closed but are sets of sub-topologies, this is
-++   like glueing sub-topologies together.
+++   Joins of whole sub-topologies are not closed but can 'split' into two lattices,
+++   this is like glueing lattices together.
 ++   for more documentation see:
 ++ References:
 ++   https://www.euclideanspace.com/prog/scratchpad/mycode/topology/finite/
@@ -43,11 +44,10 @@
 SubTopology() : Exports == Impl where
   NNI==> NonNegativeInteger
   x<<y ==> hconcat(x::OutputForm, y::OutputForm)
-  PARTITION ==> Record(result:List List NNI,complement:List NNI)
 
   Exports ==> MeetSemilattice with
 
-    subTopology : (start:Set List NNI,finish:Set List NNI) -> %
+    subTopology : (start:List NNI,finish:Set List NNI) -> %
       ++ constructor: parameters are -
       ++ start: is extension set. This is an open set which is included in every
       ++        node so we factor it out to here.
@@ -60,14 +60,9 @@ SubTopology() : Exports == Impl where
     memberElement? : (x:List NNI, s1:%) -> Boolean
       ++ is an element a member of this sub-lattice
 
-    memberOpenSet? : (x:Set List NNI, s1:%) -> Boolean
-      ++ is an open set a member of this sub-lattice
-
-    memberOpenSetList? : (x:Set List NNI, s1:List %) -> Boolean
-      ++ is an open set a member of this sub-lattice
-
-    isSubset? : (a : %, b : %) -> Boolean
-      ++ returns true if a is subset of b
+    existingSupersets : (a:List NNI,b:%) -> List List NNI
+      ++ Return all opensets that contain 'a'.
+      ++ That is, all opensets above it.
 
     empty1? : (s1 : %) -> Boolean
       ++ true if both lattice and extension are empty
@@ -75,8 +70,8 @@ SubTopology() : Exports == Impl where
     cardinality1 : (s1:%) -> NNI
       ++ number of elements in both lattice and extension
 
-    selectGrade : (a:%,degree:NNI) -> List Set List NNI
-      ++ return all sets that have 'degree' elements
+    --selectGrade : (a:%,degree:NNI) -> List Set List NNI
+    --  ++ return all sets that have 'degree' elements
 
     allOpenLists : (a:%) -> List List List NNI
       ++ Power set of lattice + ext
@@ -89,15 +84,15 @@ SubTopology() : Exports == Impl where
       ++ The union of two complete lattices is not closed
       ++ so produce a list instead
 
-    setComplement : (topLevel : List NNI,thisLattice:%) -> List NNI
-      ++ Gather all elements included in thisLattice and then take the complement
-      ++ to determine missing elements.
-
   Impl ==> add
 
+   -- Rep holds start and finish where:
    -- finish represents complete lattice on given set
-   -- start is extension set. Can think of this as the base of the lattice.
-   Rep := Record(start:Set List NNI,finish:Set List NNI)
+   --   the inner list is join of elements to give a node of lattice
+   --   outer list is basis
+   --   taking the power set of the outer list gives all nodes of lattice.
+   -- start is extension set. Can think of this as the basis of the lattice.
+   Rep := Record(start:List NNI,finish:Set List NNI)
 
    plusSeperatedList(ts:List OutputForm) : OutputForm ==
      res:List OutputForm := []
@@ -109,17 +104,39 @@ SubTopology() : Exports == Impl where
            res := cons(t,res)
      hconcat (reverse res)
 
+   -- returns true if 'a' is a subset of 'b'.
+   isSubset?(a:List NNI,b:List NNI) : Boolean ==
+     for a1 in a repeat
+       if not member?(a1,b) then return false
+     true
+
+   -- For valid lattice all nodes must be independant
+   -- They can only contain the same terms
+   isIndependant?(f:Set List NNI) : Boolean ==
+     fi:List List NNI := members f
+     for x in fi for i in 1.. repeat
+       for y in fi for j in 1.. repeat
+         if i<j then
+           if x=y then return false
+           if isSubset?(x,y) then return false
+           if isSubset?(y,x) then return false
+     true
+
    -- constructor: parameters are:
    -- start is extension set
    -- finish is complete lattice on given set
    -- these are checked for disjointedness
-   subTopology(start:Set List NNI,finish:Set List NNI) : % ==
-     for y in members(start) repeat
-       if member?(y,finish) then
+   subTopology(start:List NNI,finish:Set List NNI) : % ==
+     if member?(start,finish) then
          print _
          hconcat((brace plusSeperatedList [x::OutputForm for x in parts finish]$List(OutputForm)), _
          (brace plusSeperatedList [x::OutputForm for x in parts start]$List(OutputForm)))
          error "finish and start must be disjoint"
+     if not isIndependant?(finish) then
+         print _
+         hconcat((brace plusSeperatedList [x::OutputForm for x in parts finish]$List(OutputForm)), _
+         (brace plusSeperatedList [x::OutputForm for x in parts start]$List(OutputForm)))
+         error "all nodes must be independant"
      [start,finish]
 
    -- local helper function for allOpenLists
@@ -131,16 +148,16 @@ SubTopology() : Exports == Impl where
    -- Power set of lattice + start
    allOpenLists(a:%) : List List List NNI ==
      lat:List List NNI := members(a.finish)
-     e:List List NNI := members(a.start)
+     e:List NNI := a.start
      expanded:List List List NNI := powerSet lat
-     [concat(x,e) for x in expanded]
+     [[concat(e,y) for y in x] for x in expanded]
 
    -- Power set of lattice + start
    allOpenSets(a:%) : List Set List NNI ==
      lat:List List NNI := members(a.finish)
-     e:List List NNI := members(a.start)
+     e:List NNI := a.start
      expanded:List List List NNI := powerSet lat
-     [set concat(x,e) for x in expanded]
+     [set cons(e,x) for x in expanded]
 
    powerSetOfSets(s:List Set NNI) : List List Set NNI ==
      empty? s => [s]
@@ -150,14 +167,6 @@ SubTopology() : Exports == Impl where
    sortMeets(a: List Set NNI,b: List Set NNI) : Boolean ==
      #a > #b
 
-   -- returns true if a is subset of b
-   isSubset?(a : %, b : %) : Boolean ==
-     osa : List Set List NNI := allOpenSets(a)
-     osb : List Set List NNI := allOpenSets(b)
-     for s in osa repeat
-       if not member?(s,osb) then return false
-     true
-
    top(a:%) : List NNI ==
      m : List List NNI := members1(a)
      if m=[] or m=[[]] then return []
@@ -166,17 +175,17 @@ SubTopology() : Exports == Impl where
 
    -- meet of two sub-topologies
    _/_\(a:%, b:%) : % ==
-     astart:Set List NNI := a.start
+     astart:List NNI := a.start
      alat:Set List NNI := a.finish
-     bstart:Set List NNI := b.start
+     bstart:List NNI := b.start
      blat:Set List NNI := b.finish
-     if (empty1? a) or (empty1? b) then return [set [],set []]
+     if (empty1? a) or (empty1? b) then return [[],set []]
      if astart=bstart then
          if alat=blat then return a
-         return [intersect(alat,blat),set []]
+         return [setUnion(astart,bstart),set []]
      m1:Set List NNI := intersect(alat,alat) -- interset with itself????????????????
      m2:Set List NNI := intersect(blat,blat)
-     [union(m1,m2),set []]
+     [setUnion(astart,bstart),set []]
 
    -- The union of two complete lattices is not closed
    -- so produce a list instead
@@ -208,20 +217,21 @@ SubTopology() : Exports == Impl where
      customSeperatedList(os2,"+")
 
    coerce(s : %) : OutputForm ==
-     st : List List NNI := parts (s.start)
+     st : List NNI := s.start
+     stOut:OutputForm := formatInner(st)
      fi : List List NNI := parts (s.finish)
      if empty?(st) and empty?(s.finish) then return (message "0")
      if empty?(st) then return (message "P") << (brace (formatOS fi))
-     if empty?(s.finish) then return (brace (formatOS st))
-     (brace (formatOS st)) << (message "*P") << (brace (formatOS fi))
+     if empty?(s.finish) then return stOut
+     stOut << (message "*P") << (brace (formatOS fi))
 
    _=(a:%,b:%) : Boolean ==
      (a.finish = b.finish) and (a.start = b.start)
 
    members1(s1:%) : List List NNI ==
      s:Set List NNI := s1.finish
-     s2:Set List NNI := s1.start
-     concat(members(s),members(s2))
+     s2:List NNI := s1.start
+     setUnion(members(s),[s2])
 
    -- is an element a member of this sub-lattice
    memberElement?(x:List NNI, s1:%) : Boolean ==
@@ -229,58 +239,19 @@ SubTopology() : Exports == Impl where
        if x=y then return true
      false
 
-   -- is an open set a member of this sub-lattice
-   memberOpenSetList?(x:Set List NNI, s1:List %) : Boolean ==
-     for s2 in s1 repeat
-       oss : List Set List NNI := allOpenSets(s2)
-       if member?(x,oss) then return true
-     false
-
-   -- is an open set a member of this sub-lattice
-   memberOpenSet?(x:Set List NNI, s1:%) : Boolean ==
-     oss : List Set List NNI := allOpenSets(s1)
-     member?(x,oss)
-
    empty1?(s1 : %) : Boolean ==
      empty?(s1.start) and empty?(s1.finish)
 
    cardinality1(s1:%) : NNI ==
-     s:Set List NNI := s1.start
+     s:List NNI := s1.start
      s2:Set List NNI := s1.finish
      -- cardinality(s)+cardinality(s2)
      0
 
-   -- return all sets that have 'degree' elements
-   selectGrade(a:%,degree:NNI) : List Set List NNI ==
-     s:Set List NNI := a.start
-     s2:Set List NNI := a.finish
-     r : List List Integer :=
-       [reverse subSet(#s2,degree,i)$SymmetricGroupCombinatoricFunctions for
-         i in 0..binomial(#s2,degree)-1]
-     res : List Set List NNI := [set [elt(members(s2),x+1) for x in y] for y in r]
-     if cardinality(s)=degree then res:= cons(s,res)
-     res
-
-   -- gather all elements included in thisLattice and then take the complement
-   -- to determine missing elements
-   setComplement(topLevel : List NNI,thisLattice:%) : List NNI ==
-     openSets:List List NNI := members1(thisLattice)
-     elements : List NNI := if empty?(openSets) then [] else reduce(setUnion,openSets)
-     c : List NNI := copy topLevel
-     for x in elements repeat
-       c:= remove(x,c)
-     -- print(message "setComplement topLevel=" << topLevel <<
-     --      message " elements=" << elements << message " c=" << c)
-     c
-
-
 )abbrev domain TOPFIN TopologyFinite
 ++ Author: Martin Baker
 ++ Description:
-++   A set of open sets.
-++   Can also be thought of as a subset of the power set.
-++   It may be sufficient to use only a basis where the full
-++   topology can be reconstructed from it.
+++   A complete lattice, specified by basis nodes.
 ++   for more documentation see:
 ++ References:
 ++   https://www.euclideanspace.com/prog/scratchpad/mycode/topology/finite/
@@ -288,7 +259,11 @@ SubTopology() : Exports == Impl where
 TopologyFinite() : Exports == Impl where
   NNI==> NonNegativeInteger
   x<<y ==> hconcat(x::OutputForm, y::OutputForm)
-  PARTITION ==> Record(result:List List NNI,complement:List NNI)
+  LATTICE ==> List List NNI
+  -- LATTICE holds a compete lattice where:
+  --  the inner list is join of elements to give nodes
+  --  outer list is basis
+  --  taking the power set of the outer list gives all elements of lattice.
 
   Exports ==> SetCategory() with
 
@@ -320,12 +295,6 @@ TopologyFinite() : Exports == Impl where
     validateTopologyList : (a:List %,maxDegree:NNI) -> Boolean
       ++ check this topology has all meets and joins
       ++ also check for duplicates
-
-    allLattices : (start:List NNI,finish:List NNI) -> List PARTITION
-        ++ Construct a set of sub-topologies that covers a given space.
-        ++ This is a cover for a given grade, built from the grade below it.
-        ++ Attempts to find smallest cover, but not guaranteed smallest as
-        ++ it does not do exhaustive search.
 
     getTopology : (a:%) -> List List NNI
       ++ returns open sets as list of list
@@ -371,27 +340,26 @@ TopologyFinite() : Exports == Impl where
 
   Impl ==> add
 
-   -- A topology on a finite set.
-   -- Defined by a list of open sets. Elements are labelled by a NNI number.
+   -- A complete lattice, specified by basis nodes.
    Rep := Record(basis:Boolean,topology:List SubTopology)
 
    -- returns open sets as list of set
    getOpenSets(a:%) : List SubTopology ==
      a.topology
 
-   getTopology(a:%) : List List NNI ==
+   getTopology(a:%) : LATTICE ==
      sub : List SubTopology := a.topology
-     res : List List NNI := []
+     res : LATTICE := []
      for x in sub repeat
-       m:List List NNI := members1(x)
+       m:LATTICE := members1(x)
        res := concat (m,res)
      res
 
-   setTopologyFromList(t:List(List(NNI))) : List SubTopology ==
-     [subTopology(set [a],set []) for a in t]
+   setTopologyFromList(t:LATTICE) : List SubTopology ==
+     [subTopology(a,set []) for a in t]
 
    -- constructor
-   topologyFinite(a : List List NNI) : % ==
+   topologyFinite(a : LATTICE) : % ==
      [false,setTopologyFromList(a)]
 
    topologyFinite2(a : List SubTopology) : % ==
@@ -401,18 +369,18 @@ TopologyFinite() : Exports == Impl where
      [false,empty]
 
    -- local function to add if new
-   addIfNew(lst : List(List(NNI)), unsorted : List(NNI)) : List(List(NNI)) ==
+   addIfNew(lst : LATTICE, unsorted : List NNI) : LATTICE ==
        if empty?(unsorted) then return lst
        sorted : List(NNI) := sort(unsorted)
        if member?(sorted, lst) then return lst
        cons(sorted,lst)
 
    -- generate discrete topology
-   genDiscreteTopology(lst : List(List(NNI)),level : NNI,
-       thisOpenSet : List(NNI), dim : NNI) : List(List(NNI)) ==
+   genDiscreteTopology(lst : LATTICE,level : NNI,
+       thisOpenSet : List(NNI), dim : NNI) : LATTICE ==
      -- print(message "genDiscreteTopology(" << lst  << message ","
      --  << level  << message "," << thisOpenSet  << message "," << dim << message ")")
-     top1:List List NNI := lst
+     top1:LATTICE := lst
      for i in 1..dim repeat
        openset1 : List NNI := [i]
        if not member?(i,thisOpenSet) then
@@ -425,16 +393,16 @@ TopologyFinite() : Exports == Impl where
      top1
 
    topologyFiniteDiscrete(dim:NNI) : % ==
-     top1:List List NNI := empty
+     top1:LATTICE := empty
      top1 := genDiscreteTopology(top1,1,empty,dim)
      [false,setTopologyFromList(top1)]
 
    -- generate order topology
-   genOrderTopology(lst : List(List(NNI)),level : NNI,
-       thisOpenSet : List(NNI), dim : NNI) : List(List(NNI)) ==
+   genOrderTopology(lst : LATTICE,level : NNI,
+       thisOpenSet : List(NNI), dim : NNI) : LATTICE ==
      -- print(message "genOrderTopology(" << lst  << message ","
      --  << level  << message "," << thisOpenSet  << message "," << dim << message ")")
-     top1:List List NNI := lst
+     top1:LATTICE := lst
      openset1:List NNI := []
      for i in 1..dim repeat
        -- print(message "genOrderTopology loop(" << top1  << message "," << i  << message ")")
@@ -444,7 +412,7 @@ TopologyFinite() : Exports == Impl where
 
    -- generate order topology
    topologyFiniteLeftOrder(dim:NNI) : % ==
-     top1:List List NNI := empty
+     top1:LATTICE := empty
      top1 := genOrderTopology(top1,1,empty,dim)
      [false,setTopologyFromList(top1)]
 
@@ -455,11 +423,11 @@ TopologyFinite() : Exports == Impl where
    full2basis(a:%) : % ==
      -- assume number of elements is maximum index
      numEle:NNI := 0
-     top1:List List NNI := getTopology(a)
+     top1:LATTICE := getTopology(a)
      for x in top1 repeat
        for y in x repeat
          if y>numEle then numEle:=y
-     basisSets:List List NNI := empty
+     basisSets:LATTICE := empty
      for currEle in 1..numEle repeat
        basisCandidate:List NNI := empty
        minSize:NNI := 0
@@ -482,8 +450,8 @@ TopologyFinite() : Exports == Impl where
 
    -- Add all unions of open sets not already included
    basis2full(a:%) : % ==
-     top1:List List NNI := getTopology(a)
-     top2:List List NNI := copy(top1) -- so we dont alter top1 inside loop
+     top1:LATTICE := getTopology(a)
+     top2:LATTICE := copy(top1) -- so we dont alter top1 inside loop
      for x in top1 repeat
        for y in top1 repeat
          z : List NNI := sort (unionLocal(x,y))
@@ -508,143 +476,85 @@ TopologyFinite() : Exports == Impl where
        if cardinality1(x)$SubTopology > numEle then numEle := cardinality1(x)$SubTopology
      numEle
 
-   -- Given a set this function returns all its divisions that
-   -- contain all elements.
-   allDivisionsSetHelper(s:Record(result:List NNI,complement:List NNI)) : _
-        List Record(result:List NNI,complement:List NNI) ==
-     empty?(s.result) => [s]
-     f : NNI := first (s.result)
-     z : Record(result:List NNI,complement:List NNI) := [rest (s.result),cons(f,(s.complement))]
-     p : List Record(result:List NNI,complement:List NNI) := allDivisionsSetHelper(z)
-     res: List Record(result:List NNI,complement:List NNI) := copy p
-     for x in p repeat
-       c : List NNI := remove(f,x.complement)
-       r : List NNI := cons(f,x.result)
-       if r<c then
-         y : Record(result:List NNI,complement:List NNI) := [r,c]
-         res := cons(y,res)
-     res
-
-   -- Given a set this function returns all its divisions that
-   -- contain all elements.
-   allDivisionsSet(s1:List NNI) : List List List NNI ==
-     s:Record(result:List NNI,complement:List NNI) := [s1,[]]
-     r:List Record(result:List NNI,complement:List NNI) := allDivisionsSetHelper(s)
-     res:List List List NNI := []
-     for x in r repeat
-       r1:List NNI := x.result
-       c1:List NNI := x.complement
-       if #r1 > 1
-         then
-           r2: List List List NNI := allDivisionsSet(r1)
-           for r3 in r2 repeat
-             r4: List List NNI := concat(r3,c1)
-             -- print(message "allDivisionsSet r1=" << r1 << message " r2=" << r2 <<
-             --       message " r3=" << r3 << message " r4=" << r4 << message " c1=" << c1)
-             res := cons(r4,res)
-         else
-           if #r1=0
-             then
-               res := cons([c1],res)
-             else
-               res := cons([r1,c1],res)
-     res
-
-   -- Given a set this function returns all its subsets together with
-   -- their complement.
-   splitSet(s:Record(result:List NNI,complement:List NNI)) : _
-        List Record(result:List NNI,complement:List NNI) ==
-     empty?(s.result) => [s]
-     f : NNI := first (s.result)
-     z : Record(result:List NNI,complement:List NNI) := [rest (s.result),cons(f,(s.complement))]
-     p : List Record(result:List NNI,complement:List NNI) := splitSet(z)
-     res: List Record(result:List NNI,complement:List NNI) := copy p
-     for x in p repeat
-       c : List NNI := remove(f,x.complement)
-       y : Record(result:List NNI,complement:List NNI) := [cons(f,x.result),c]
-       res := cons(y,res)
-     reverse res
-
-   -- Construct a set of sub-topologies that covers a given space
-   -- This is a cover for a given grade, built from the grade below it.
-   -- Attempts to find smallest cover, but not guaranteed smallest as
-   -- it does not do exhaustive search.
-   allLattices(start:List NNI,finish:List NNI) : List PARTITION ==
-     if empty?(finish) then return []
-     p : Record(result:List NNI,complement:List NNI) := [finish,[]]
-     ps : List Record(result:List NNI,complement:List NNI) := splitSet(p)
-     res : List PARTITION := []
-     for x in ps repeat
-       r:List NNI := x.result
-       d:List List List NNI := allDivisionsSet(reverse r)
-       c:List NNI := x.complement
-       for d2 in d repeat
-         y:PARTITION := [d2,c]
-         res := concat(res,y)
-     res
-
-   -- join 'a' and 'b'
-   -- uses weak distributive rule
-   joinEle(a:List List NNI,b:List List NNI) : List List List NNI ==
+   -- weak join of 'a' and 'b'
+   -- uses weak distributive rule: (A+B) \/ C = split: (A \/ C + B) , (B \/ C + A)
+   joinLattice(b:LATTICE,a:LATTICE) : List LATTICE ==
      if a=[] or a=[[]] then return [b]
      if b=[] or b=[[]] then return [a]
-     res: List List List NNI := []
+     res: List LATTICE := []
      for a1 in a repeat
        for b1 in b repeat
-         a2:List List NNI := remove(a1,a)
-         b2:List List NNI := remove(b1,b)
-         d:List List NNI := [concat(a1,b1)]
+         a2:LATTICE := remove(a1,a)
+         b2:LATTICE := remove(b1,b)
+         d:LATTICE := [concat(a1,b1)]
          d := concat(a2,d)
          d := concat(b2,d)
          res := cons(d,res)
-     -- print(message "joinEle a=" << a << message " b=" << b << message " res=" << reverse res)
+     -- print(message "joinLattice a=" << a << message " b=" << b << message " res=" << reverse res)
      reverse res
 
    -- join 'a' to each element of vector
-   joinVector(a:List List NNI,vec:List List List NNI) : List List List NNI ==
+   joinVector(a:LATTICE,vec:List LATTICE) : List LATTICE ==
      if a=[] or a=[[]] then return vec
-     res : List List List NNI := []
+     res : List LATTICE := []
      for v in vec repeat
-       res := concat(joinEle(a,v),res)
+       res := concat(joinLattice(a,v),res)
      res
 
-   -- add 'a' to 'b'
-   addEle(a:List List NNI,b:List List NNI) : List List NNI ==
-     -- print(message "addEle a=" << a << message " b=" << b)
+   -- add two lattices by merging their basis open sets
+   addLattice(a:LATTICE,b:LATTICE) : LATTICE ==
+     -- print(message "addLattice a=" << a << message " b=" << b)
      if b=[] or b=[[]] then return []
      concat(a,b)
 
-   -- add 'a' to each element of vector
-   addVector(a:List List NNI,vec:List List List NNI) : List List List NNI ==
+   -- add (split A+B:=[A,B]) 'a' to each element of vector
+   addVector(a:LATTICE,vec:List LATTICE) : List LATTICE ==
      if a=[] or a=[[]] then return []
-     [addEle(a,v) for v in vec | not (v=[] or v=[[]])]
+     [addLattice(a,v) for v in vec | not (v=[] or v=[[]])]
 
-   nextVector(a:List List NNI,vec:List List List NNI) : List List List NNI ==
-     res : List List List NNI := vec
-     addv : List List List NNI := addVector(a,vec)
-     joinv : List List List NNI := joinVector(a,vec)
+   -- For each element in the vector do both of:
+   -- - Join (union) with 'a'
+   -- - Add (split A+B:=[A,B]) to 'a'
+   nextVector(a:LATTICE,vec:List LATTICE) : List LATTICE ==
+     res : List LATTICE := vec
+     addv : List LATTICE := addVector(a,vec)
+     joinv : List LATTICE := joinVector(a,vec)
      -- print(message "nextVector a=" << a << message " vec=" << vec <<
      --      message " addv=" << addv << message " joinv" << joinv)
      res := concat(addv,res)
-     res := concat(joinv,res)
-     res
+     concat(joinv,res)
 
    -- All sets of open sets where each element is included 0 or 1 times but
    -- not more.
-   allSetsOfOpenSetsNoDuplicates(start:List NNI,finish:List NNI) : List List List NNI ==
+   -- Local function used by allTopologies function.
+   allSetsOfOpenSetsNoDuplicates(start:List NNI,finish:List NNI) : List LATTICE ==
      if #finish < 1 then return []
-     res : List List List NNI := []
+     res : List LATTICE := []
      for ele in finish repeat
        if empty? res
          then res := [[],[[ele]]]
          else res := nextVector([[ele]],res)
      res
 
+   -- Remove all elements in open set 'b' from open set 'a'.
+   -- Local function used by allTopologies function.
    setSubtract(a : List NNI,b : List NNI) : List NNI ==
      res : List NNI := a
      for b1 in b repeat
        res := remove(b1,res)
-     res
+     sort res
+
+   -- Return list of points which have been covered by the stack of lattices
+   -- generated so far.
+   -- Local function used by allTopologies function.
+   elementsSoFar(subTopologyStack:List SubTopology,thisSL : SubTopology, _
+                 bottom : List List NNI) : List NNI ==
+     thisTop : List NNI := top thisSL
+     for x in subTopologyStack repeat
+       thisTop := setUnion(top x,thisTop)
+     for y in bottom repeat
+       thisTop := setUnion(y,thisTop)
+     sort thisTop
 
    -- Recursively called to construct a list of all possible topologies on that set.
    -- Parameters:
@@ -652,46 +562,68 @@ TopologyFinite() : Exports == Impl where
    -- bottom - bottom elements of this lattice.
    -- thisRemainder - open set containing elements yet to be covered
    -- subTopologyStack - A list of the subTopologys below this.
-   allTopologies(level:NNI,topLevel : List NNI,bottom : List List NNI,thisRemainder : List NNI,
+   allTopologies(level:NNI,topLevel : List NNI,bottom : List NNI,thisRemainder : List NNI,
         subTopologyStack : List SubTopology,
-        topologyStack : List List SubTopology) : List List SubTopology ==
-     res:List List SubTopology := topologyStack
-     all : List List List NNI := allSetsOfOpenSetsNoDuplicates([],thisRemainder)
-     print(message "allTopologies level=" << level <<
-           message " topLevel=" << topLevel <<
-           message " bottom=" << bottom <<
-           message " thisRemainder=" << thisRemainder <<
-           message " subTopologyStack=" << subTopologyStack <<
-           message " topologyStack=" << topologyStack <<
-           message " all=" << all)
+        topologyStack : List %) : List % ==
+     res:List % := topologyStack
+     all : List LATTICE := allSetsOfOpenSetsNoDuplicates([],thisRemainder)
+     --if false then
+     --  print(message "allTopologies level=" << level <<
+     --     message " topLevel=" << topLevel <<
+     --     message " bottom=" << bottom <<
+     --     message " thisRemainder=" << thisRemainder <<
+     --     message " subTopologyStack=" << subTopologyStack <<
+     --     message " topologyStack=" << topologyStack <<
+     --     message " all=" << all)
      for lattice in all repeat
        innerRes:List SubTopology := subTopologyStack
        if not lattice=[] then
-         thisSL : SubTopology := subTopology(set bottom,set lattice)
-         -- print(message "  thisSL=" << thisSL << message " lattice=" << lattice)
-         thisTop : List NNI := top thisSL
+         thisSL : SubTopology := subTopology(bottom,set lattice)
+         thisTop : List NNI := elementsSoFar(subTopologyStack,thisSL,[bottom])
          newRemainder : List NNI := setSubtract(topLevel,thisTop)
          innerRes := cons(thisSL,innerRes)
+         --if bottom=[1,2] then
+         --  print(message "  thisSL=" << thisSL << message " thisTop=" << thisTop <<
+         --      message "  newRemainder=" << newRemainder << message " innerRes=" << innerRes)
          if thisTop=topLevel
            then
-             res := cons(reverse innerRes,res)
-             -- print(message "  thisSL=" << thisSL << message " innerRes=" << innerRes)
+             -- this topology is complete so add it to list
+             res := cons(topologyFinite2(reverse innerRes),res)
+             -- print(message "*** complete ****")
            else
-             allNodes : List List List NNI := allOpenLists thisSL
+             -- topology not yet complete so generate more lattices recursively
+             allNodes : List LATTICE := allOpenLists thisSL
+             --if bottom=[1,2] then
+             --   print(message "    allNodes=" << allNodes << message " thisSL=" << thisSL)
              for node in allNodes repeat
-               if not node=[] then
-                 target : List NNI := copy topLevel
-                 for os in node repeat
-                   target := setSubtract(target,os)
-                 -- print(message "    node=" << node << message " target=" << target)
-                 if (target=[] or (sort target)=topLevel)
-                   then
-                     innerRes := cons(thisSL,innerRes)
-                   else
-                     -- print(message "    bottom=" << bottom << message " thisTop=" << thisTop)
-                     if level<3 then
-                       res := allTopologies(level+1,topLevel,node,newRemainder,innerRes,res)
-     res
+               if not (node=[] or node=[[]]) then
+                 lat : LATTICE := lattice
+                 newBase : List NNI := first node
+                 if #lat > 1 then
+                   -- base cant be powerset so convert a+b to a\/b
+                   -- ************************ also need to add other elements *****************
+                   newBase := reduce(setUnion,node)
+                   print(message "    allNodes=" << allNodes)
+                   print(message " node=" << node <<
+                         message " newRemainder=" << newRemainder)
+                   print(message " lattice=" << lattice <<
+                         message " newBase=" << newBase <<
+                         message " thisSL=" << thisSL)
+                 -- set target to be missing elements
+                 --target : List NNI := copy topLevel
+                 --for os in node repeat
+                 --  target := setSubtract(target,os)
+                 --print(message "    node=" << node << message " newRemainder=" << newRemainder)
+                 --if (target=[] or target=topLevel)
+                 --  then
+                 --    -- *************** never gets here - remove target?
+                 --    print(message "    target=" << target << message " newRemainder=" << newRemainder)
+                 --    innerRes := cons(thisSL,innerRes)
+                 --  else
+                 -- print(message "    bottom=" << bottom << message " thisTop=" << thisTop)
+                 if level<100 then
+                   res := allTopologies(level+1,topLevel,newBase,newRemainder,innerRes,res)
+     reverse res
 
    -- Given a set, construct a list of all possible topologies on that set
    -- Each of these topologies is made up from sub-topologies (complete lattices of open sets)
@@ -701,56 +633,8 @@ TopologyFinite() : Exports == Impl where
    -- I have written an explanation of this algorithm on the web page here:
    -- https://www.euclideanspace.com/maths/topology/topologicalSpace/finite/extension/index.htm
    allTopologiesOnSet(topLevel : List NNI) : List % ==
-     node : List List NNI := []
-     subTopologyStack : List SubTopology := []
-     topologyStack : List List SubTopology := []
-     topologyStack := allTopologies(1,topLevel,node,topLevel,subTopologyStack,topologyStack)
-     res : List % := []
-     for x in topologyStack repeat
-       t:% := topologyFinite2 x
-       res := cons(t,res)
-     res
-
-)if false
-
-   -- Given a set, construct a list of all possible topologies on that set
-   -- Each of these topologies is made up from sub-topologies (complete lattices of open sets)
-   -- that cover the space.
-   -- Warning: This function can return very long lists, if the input set is 6 or
-   -- more elements then the computer may run out of resources and crash.
-   -- I have written an explanation of this algorithm on the web page here:
-   -- https://www.euclideanspace.com/maths/topology/topologicalSpace/finite/extension/index.htm
-   allTopologiesOnSet(topLevel : List NNI) : List % ==
-     subTopologyStack : List SubTopology := []
-     all : List List List NNI := allSetsOfOpenSetsNoDuplicates([],topLevel)
-     print(message "allTopologiesOnSet all=" << all)
-     res : List % := []
-     for sl in all repeat
-       thisSL : SubTopology := subTopology(set [],set sl)
-       subTopologyStack := [thisSL]
-       thisTop : List NNI := top thisSL
-       thisRemainder : List NNI := setSubtract(topLevel,thisTop)
-       if thisTop=topLevel
-         then res := cons(topologyFinite2 [thisSL],res)
-         else
-           allNodes : List List List NNI := allOpenLists thisSL
-           print(message "  thisSL=" << thisSL << message " allNodes=" << allNodes)
-           for node in allNodes repeat
-             if not node=[] then
-               target : List NNI := copy topLevel
-               for os in node repeat
-                 target := setSubtract(target,os)
-               print(message "    node=" << node << message " target=" << target)
-               if (target=[] or (sort target)=topLevel)
-                 then
-                   res := cons(topologyFinite2 [thisSL],res)
-                 else
-                   subTopologyStack := allTopologies(topLevel,node,thisRemainder,subTopologyStack)
-                   t:% := topologyFinite2 subTopologyStack
-                   res := cons(t,res)
-     res
-
-)endif
+     -- call recursively
+     allTopologies(1,topLevel,[],topLevel,[],[])
 
 --Copyright (c) 2025, Martin J Baker.
 --All rights reserved.
