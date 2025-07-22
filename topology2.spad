@@ -31,6 +31,14 @@
 )abbrev domain TOPEXT SubTopology
 ++ Author: Martin Baker
 ++ Description:
+++   This is a complete lattice specified by basis nodes. That is the elements of the
+++   lattice may be specified either directly by a number such as '1' (basis node) or
+++   other nodes are only implied by a requirment of a join of multiple numbers such as '1\/2\/3'.
+++   for more documentation see:
+++ References:
+++   https://www.euclideanspace.com/prog/scratchpad/mycode/topology/finite/
+++
+++ Old Description:
 ++   This is a complete lattice of open sets, in that it has all meets and joins of open sets.
 ++   These meets and joins can be extended to the whole topology, so it is a sub-topology.
 ++   We can also define meets and joins of the sub-topologies themselves, these are only
@@ -54,8 +62,13 @@ SubTopology() : Exports == Impl where
       ++ finish: is complete lattice on given set
       ++ these are checked for disjointedness
 
-    members1 : (s1:%) -> List List NNI
-      ++ all members in both lattice and extension
+    membersBasis : (s1:%) -> List List NNI
+      ++ Nodes of whole lattice in this sub-lattice basis
+      ++ when start is added to them all.
+
+    membersAll : (s1:%) -> List List NNI
+      ++ Nodes of whole lattice in this sub-lattice
+      ++ when start is added to them all.
 
     memberElement? : (x:List NNI, s1:%) -> Boolean
       ++ is an element a member of this sub-lattice
@@ -70,15 +83,17 @@ SubTopology() : Exports == Impl where
     cardinality1 : (s1:%) -> NNI
       ++ number of elements in both lattice and extension
 
-    --selectGrade : (a:%,degree:NNI) -> List Set List NNI
-    --  ++ return all sets that have 'degree' elements
-
     allOpenLists : (a:%) -> List List List NNI
       ++ Power set of lattice + ext
 
     allOpenSets : (a:%) -> List Set List NNI
 
+    up : (a:%,b:List NNI) -> List List NNI
+      ++ find nodes which contain b plus another element
+      ++ that is one level up in partial order.
+
     top : (a:%) -> List NNI
+      ++ Element of whole lattice which is top element of this sub lattice.
 
     join : (a:%, b:%) -> List %
       ++ The union of two complete lattices is not closed
@@ -167,8 +182,31 @@ SubTopology() : Exports == Impl where
    sortMeets(a: List Set NNI,b: List Set NNI) : Boolean ==
      #a > #b
 
+   -- find nodes which contain b plus another element
+   -- that is next level up in partial order.
+   up(a:%,b:List NNI) : List List NNI ==
+     res : List List NNI := []
+     all : List List NNI := membersAll a
+     --st : List NNI := a.start
+     --if not empty? st then
+     --  all2 : List List NNI := [sort concat(st,y) for y in all]
+     --  all := all2
+     -- a1:List NNI - a basis element in this sub-topology
+     -- b:List NNI - an element we want to find a seperset of
+     for a1 in all repeat
+       --print(message "  a1=" << a1 <<
+       --    message " b=" << b)
+       -- if #a1 = #b +1 and every?((x : NNI) : Boolean +-> member?(x, a1), b) then
+       if #a1 > #b and every?((x : NNI) : Boolean +-> member?(x, a1), b) then
+         -- every?(p, u) tests if p(x) is true for all elements x of u.
+         res := cons(a1,res)
+     --print(message " up a=" << a <<
+     --      message " b=" << b <<
+     --      message " res=" << res)
+     res
+
    top(a:%) : List NNI ==
-     m : List List NNI := members1(a)
+     m : List List NNI := membersBasis(a)
      if m=[] or m=[[]] then return []
      r : List NNI := reduce(setUnion,m)
      sort r
@@ -228,14 +266,22 @@ SubTopology() : Exports == Impl where
    _=(a:%,b:%) : Boolean ==
      (a.finish = b.finish) and (a.start = b.start)
 
-   members1(s1:%) : List List NNI ==
-     s:Set List NNI := s1.finish
+   -- Nodes of whole lattice in this basis for sub-lattice
+   -- when start is added to them all.
+   membersBasis(s1:%) : List List NNI ==
+     s:List List NNI := members(s1.finish)
      s2:List NNI := s1.start
-     setUnion(members(s),[s2])
+     [sort setUnion(s2,s3) for s3 in s]
+
+   -- Nodes of whole lattice in this basis for sub-lattice
+   -- when start is added to them all.
+   membersAll(s1:%) : List List NNI ==
+     s:List List List NNI := allOpenLists s1
+     [sort concat s3 for s3 in s]
 
    -- is an element a member of this sub-lattice
    memberElement?(x:List NNI, s1:%) : Boolean ==
-     for y in members1(s1) repeat
+     for y in membersBasis(s1) repeat
        if x=y then return true
      false
 
@@ -318,6 +364,9 @@ TopologyFinite() : Exports == Impl where
 
     powerSetGradedOld : (d:NNI,grade:NNI) -> List List NNI
 
+    allAbove : (element:List NNI,stack:List SubTopology) -> List List NNI
+      ++ exported for debug use only *********************************************
+
     nerveConstruction : (a : %) -> FiniteSimplicialComplex(Integer)
       ++ A nerve construction creates a simplicial complex with the
       ++ topological properties of a given set family.
@@ -351,7 +400,7 @@ TopologyFinite() : Exports == Impl where
      sub : List SubTopology := a.topology
      res : LATTICE := []
      for x in sub repeat
-       m:LATTICE := members1(x)
+       m:LATTICE := membersBasis(x)
        res := concat (m,res)
      res
 
@@ -524,8 +573,8 @@ TopologyFinite() : Exports == Impl where
      res := concat(addv,res)
      concat(joinv,res)
 
-   -- All sets of open sets where each element is included 0 or 1 times but
-   -- not more.
+   -- All lattices where each node is included 0 or 1 times but not more.
+   -- A node may be an element (1) or a join of elements (1\/2).
    -- Local function used by allTopologies function.
    allSetsOfOpenSetsNoDuplicates(start:List NNI,finish:List NNI) : List LATTICE ==
      if #finish < 1 then return []
@@ -556,13 +605,28 @@ TopologyFinite() : Exports == Impl where
        thisTop := setUnion(y,thisTop)
      sort thisTop
 
+   -- For a given element, find the elements above it in a stack of sub-topologies.
+   -- Returns empty if none found.
+   allAbove(element:List NNI,stack:List SubTopology) : List List NNI ==
+     res : List List NNI := []
+     for subLat in stack repeat
+       nodes : List List NNI := up(subLat,element)
+       if not empty? nodes then
+         res := concat(nodes,res)
+     --print(message "allAbove element=" << element <<
+     --      message " stack=" << stack <<
+     --      message " res=" << res)
+     res
+
    -- Recursively called to construct a list of all possible topologies on that set.
    -- Parameters:
    -- topLevel - set of elements to construct over.
    -- bottom - bottom elements of this lattice.
    -- thisRemainder - open set containing elements yet to be covered
+   -- mustInclude - all nodes of sub-lattice which must be included
    -- subTopologyStack - A list of the subTopologys below this.
    allTopologies(level:NNI,topLevel : List NNI,bottom : List NNI,thisRemainder : List NNI,
+        mustInclude : List List NNI,
         subTopologyStack : List SubTopology,
         topologyStack : List %) : List % ==
      res:List % := topologyStack
@@ -599,30 +663,24 @@ TopologyFinite() : Exports == Impl where
                if not (node=[] or node=[[]]) then
                  lat : LATTICE := lattice
                  newBase : List NNI := first node
+                 must : List List NNI := allAbove(newBase,innerRes)
                  if #lat > 1 then
+                   --if #lat =100 then
                    -- base cant be powerset so convert a+b to a\/b
                    -- ************************ also need to add other elements *****************
-                   newBase := reduce(setUnion,node)
-                   print(message "    allNodes=" << allNodes)
-                   print(message " node=" << node <<
-                         message " newRemainder=" << newRemainder)
-                   print(message " lattice=" << lattice <<
-                         message " newBase=" << newBase <<
-                         message " thisSL=" << thisSL)
-                 -- set target to be missing elements
-                 --target : List NNI := copy topLevel
-                 --for os in node repeat
-                 --  target := setSubtract(target,os)
-                 --print(message "    node=" << node << message " newRemainder=" << newRemainder)
-                 --if (target=[] or target=topLevel)
-                 --  then
-                 --    -- *************** never gets here - remove target?
-                 --    print(message "    target=" << target << message " newRemainder=" << newRemainder)
-                 --    innerRes := cons(thisSL,innerRes)
-                 --  else
-                 -- print(message "    bottom=" << bottom << message " thisTop=" << thisTop)
+                   --newBase := reduce(setUnion,node)
+                   --must : List List NNI := allAbove(newBase,innerRes)
+                   print(message "allNodes=" << allNodes)
+                   print(message "  node=" << node <<
+                         message "  newRemainder=" << newRemainder)
+                   print(message "  lattice=" << lattice <<
+                         message "  thisSL=" << thisSL)
+                   print(message "  newBase=" << newBase <<
+                         message "  innerRes=" << innerRes <<
+                         message "  must=" << must)
                  if level<100 then
-                   res := allTopologies(level+1,topLevel,newBase,newRemainder,innerRes,res)
+                   res := allTopologies(level+1,topLevel,newBase,newRemainder,
+                                        must,innerRes,res)
      reverse res
 
    -- Given a set, construct a list of all possible topologies on that set
@@ -634,7 +692,7 @@ TopologyFinite() : Exports == Impl where
    -- https://www.euclideanspace.com/maths/topology/topologicalSpace/finite/extension/index.htm
    allTopologiesOnSet(topLevel : List NNI) : List % ==
      -- call recursively
-     allTopologies(1,topLevel,[],topLevel,[],[])
+     allTopologies(1,topLevel,[],topLevel,[],[],[])
 
 --Copyright (c) 2025, Martin J Baker.
 --All rights reserved.
