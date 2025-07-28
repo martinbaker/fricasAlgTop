@@ -6,6 +6,8 @@
 -- Here are some things to test the code:
 --
 -- allTopologiesOnSet [1,2,3]
+-- 4 elements. There are 355 distinct topologies
+-- #allTopologiesOnSet [1,2,3,4] gives 495
 -- b := subLattice([1],[[2,3]]) -- 1*P{2\/3}
 -- b := subLattice([1],[[2],[3]]) -- 1*P{2+3}
 -- existingSupersets([2],b)
@@ -129,6 +131,7 @@ SubLattice() : Exports == Impl where
    -- bottom is extension set. Can think of this as the basis of the lattice.
    Rep := Record(bottom:List NNI,basis:List List NNI)
 
+   -- Helper for formatting output
    stringSeperatedList(ts:List OutputForm,sep : String) : OutputForm ==
      res:List OutputForm := []
      for t in ts for i in 1.. repeat
@@ -145,15 +148,13 @@ SubLattice() : Exports == Impl where
        if not member?(a1,b) then return false
      true
 
-   -- For valid lattice all nodes must be independant
-   -- They can only contain the same terms
-   isIndependant?(f:List List NNI) : Boolean ==
-     for x in f for i in 1.. repeat
-       for y in f for j in 1.. repeat
+   -- For valid lattice all basis must be independant.
+   -- They can only contain the same element once.
+   isIndependant?(basis:List List NNI) : Boolean ==
+     for x in basis for i in 1.. repeat
+       for y in basis for j in 1.. repeat
          if i<j then
-           if x=y then return false
-           if isSubset?(x,y) then return false
-           if isSubset?(y,x) then return false
+           if setIntersection(x,y) ~= [] then return false
      true
 
    -- constructor: parameters are:
@@ -289,7 +290,7 @@ SubLattice() : Exports == Impl where
 
    -- find nodes which contain b plus another element
    -- that is next level up in partial order.
-   -- Modify this to only find nearest superset ***************************************
+   -- Modify this as below
    up(a:%,b:List NNI) : List List NNI ==
      res : List List NNI := []
      all : List List NNI := membersAll a
@@ -303,18 +304,39 @@ SubLattice() : Exports == Impl where
      --      message " res=" << res)
      res
 
-   -- find nodes which contain b plus another element
-   -- that is next level up in partial order.
-   -- Modify this to only find nearest superset ***************************************
-   upRelative(a:%,b:List NNI) : List List NNI ==
+   addIfLowest(element:List NNI,basis:List List NNI) : List List NNI ==
      res : List List NNI := []
-     all : List List NNI := membersAll a
+     independant:Boolean := true
+     for b in basis repeat
+       --if isSubset?(element,b) then -- returns true if 'a' is a subset of 'b'.
+       if setIntersection(element,b) ~= []
+         then -- returns true if 'a' and 'b' are not independant.
+           if #element > #b
+             then
+               res:=cons(b,res)
+             else
+               if independant then res:=cons(element,res) -- only do once
+           independant := false
+         else res:=cons(b,res)
+     if independant then res := cons(element,res)
+     res
+
+   -- Find nodes which contain element,
+   -- that is next level up in partial order (only find nearest superset).
+   upRelative(lattice:%,element:List NNI) : List List NNI ==
+     res : List List NNI := []
+     all : List List NNI := expandNoOffset lattice
      for a1 in all repeat
-       if #a1 > #b and every?((x : NNI) : Boolean +-> member?(x, a1), b) then
-         a2 : List NNI := sort setDifference(a1,b)
-         -- setDifference(u1, u2) returns a list of the elements of u1 that are not also in u2.
+       if #a1 > #element and every?((x : NNI) : Boolean +-> member?(x, a1), element) then
+         a2 : List NNI := sort setDifference(a1,element)
+         -- setDifference(u1, u2) returns lattice list of the elements of u1 that are not also in u2.
          -- The order of elements in the resulting list is unspecified.
-         res := cons(a2,res)
+         res := addIfLowest(a2,res)
+     if not isIndependant? res then
+       print(message "upRelative: Error not independant. element=" << element <<
+             message " lattice=" << lattice <<
+             message " res=" << res)
+       return []
      res
 
    top(a:%) : List NNI ==
@@ -457,7 +479,8 @@ TopologyFinite() : Exports == Impl where
 
     powerSetGradedOld : (d:NNI,grade:NNI) -> List List NNI
 
-    allAbove : (element:List NNI,stack:List SubLattice,oldBottom : List NNI,trace : Boolean) -> List List NNI
+    allLatticesNoRepeatedElements : (bottom:List NNI,basis:List NNI,
+                                 mustInclude : List List NNI,trace : Boolean) -> List SubLattice
       ++ exported for debug use only *********************************************
 
     nerveConstruction : (a : %) -> FiniteSimplicialComplex(Integer)
@@ -618,35 +641,71 @@ TopologyFinite() : Exports == Impl where
        if cardinality1(x)$SubLattice > numEle then numEle := cardinality1(x)$SubLattice
      numEle
 
-   -- All lattices where each node is included 0 or 1 times but not more.
-   -- A node may be an element (such as 1) or a join of elements (such as 1\/2).
+   -- returns true if 'a' is a subset of 'b'.
+   isSubset?(a:List NNI,b:List NNI) : Boolean ==
+     for a1 in a repeat
+       if not member?(a1,b) then return false
+     true
+
+   -- For valid lattice all basis must be independant.
+   -- They can only contain the same element once.
+   isIndependant?(basis:List List NNI) : Boolean ==
+     for x in basis for i in 1.. repeat
+       for y in basis for j in 1.. repeat
+         if i<j then
+           if setIntersection(x,y) ~= [] then return false
+     true
+
+   validLattice?(bottom:List NNI,basis:List List NNI) : Boolean ==
+     if member?(bottom,basis) then return false
+     if not isIndependant?(basis) then return false
+     true
+
+   -- All lattices where each point is included 0 or 1 times but not more.
+   -- A point may be an element (such as 1) or a join of elements (such as 1\/2).
+   -- if basis=[1,2] then output is: [],[1],[2],[1\/2],[1+2]
+   -- if basis=[1,2,3] then output is: [],[1],[2],[3],[1\/2],[1\/3],[2\/3],[2+1],
+   --                   [3+1],[3+2],[1+2\/3],[2+1\/3],[3+1\/2],[1\/2\/3],[3+2+1]
    -- Local function used by allTopologies function.
-   -- ****************************** need to enforce mustInclude *******************************
-   allSetsOfOpenSetsNoDuplicates(bottom:List NNI,basis:List NNI,
+   allLatticesNoRepeatedElements(bottom:List NNI,basis:List NNI,
                                  mustInclude : List List NNI,trace : Boolean) : List SubLattice ==
-     if #basis < 1 then return []
+     if #basis < 1 then
+       return (if bottom=[] then [] else [subLattice(bottom,[])])
      res : List SubLattice := []
+     if not isIndependant?(mustInclude) then
+       print(message "allLatticesNoRepeatedElements mustInclude not independant." << trace)
+       print(message " basis=" << basis <<
+             message " bottom=" << bottom)
+       print(message " mustInclude=" << mustInclude)
+       return res
      for ele in basis repeat
        newBasis : List List NNI := [[ele]]
        if not empty? mustInclude then
-         -- **************************************************************
-         -- * need to subtract bottom from mustInclude first
-         -- **************************************************************
          newBasis := concat(newBasis,mustInclude)
+         if not isIndependant?(newBasis) then
+           print(message "allLatticesNoRepeatedElements1 basis not independant." << trace)
+           print(message " newBasis=" << newBasis <<
+                 message " basis=" << basis <<
+                 message " bottom=" << bottom)
+           print(message " mustInclude=" << mustInclude)
+           return res
          if trace then
-           print(message "      allSetsOfOpenSetsNoDuplicates mustInclude not empty. bottom=" << bottom)
+           print(message "      allLatticesNoRepeatedElements mustInclude not empty. bottom=" << bottom)
            print(message "        basis=" << basis <<
                  message " mustInclude=" << mustInclude)
        if empty? res
          then
-           res := [subLattice([],[]),subLattice(bottom,newBasis)]
+           res := [subLattice(bottom,[]),subLattice(bottom,newBasis)]
            -- subLattice([],[]) not stricly correct as empty lattice is
            -- not a valid lattice but is required as a marker.
          else
+           if not isIndependant?(newBasis) then
+             print(message "allLatticesNoRepeatedElements2 basis not independant. newBasis=" << newBasis)
+             return res
            res : List SubLattice := nextVector(subLattice(bottom,newBasis),res,trace)
      -- if empty? mustInclude then return res
      if trace then
-       print(message "      allSetsOfOpenSetsNoDuplicates bottom=" << bottom <<
+       print(message "      allLatticesNoRepeatedElements bottom=" << bottom <<
            message " basis=" << basis <<
            message " mustInclude=" << mustInclude)
        print(message "         res=" << res)
@@ -672,29 +731,11 @@ TopologyFinite() : Exports == Impl where
        thisTop := setUnion(y,thisTop)
      sort thisTop
 
-   -- For a given element, find the elements above it in a stack of sub-lattices.
-   -- Returns empty if none found.
-   -- This is used to tell us that any new sub-lattice with bottom at 'element'
-   -- also has to contain 'must' in its basis.
-   allAbove(element:List NNI,stack:List SubLattice,oldBottom : List NNI,trace : Boolean) : List List NNI ==
-     must : List List NNI := []
-     for subLat in stack repeat
-       nodes : List List NNI := upRelative(subLat,element)
-       -- ************************************************************************
-       if not empty? nodes then
-         must := concat(nodes,must)
-     if trace then
-       print(message "      allAbove element=" << element <<
-           message " stack=" << stack <<
-           message " oldBottom=" << oldBottom <<
-           message " must=" << must)
-     must
-
    -- Recursively called to construct a list of all possible topologies on that set.
    -- Parameters:
    -- topLevel - set of elements to construct over.
-   -- bottom - bottom elements of this lattice.
-   -- thisRemainder - open set containing elements yet to be covered
+   -- bottom - bottom element of this lattice.
+   -- thisRemainder - elements yet to be covered
    -- mustInclude - all nodes of sub-lattice which must be included
    -- subLatticeStack - A list of the subLattices below this.
    allTopologies(level:NNI,topLevel : List NNI,bottom : List NNI,thisRemainder : List NNI,
@@ -702,7 +743,15 @@ TopologyFinite() : Exports == Impl where
         subLatticeStack : List SubLattice,
         topologyStack : List %,trace : Boolean) : List % ==
      res:List % := topologyStack
-     all : List SubLattice := allSetsOfOpenSetsNoDuplicates(bottom,thisRemainder,mustInclude,trace)
+     -- 'all' will hold all combinations of elements not yet covered.
+     -- Each combination is a basis for a sub-lattice.
+     if not isIndependant?(mustInclude) then
+       print(message "allTopologies mustInclude not independant." << trace)
+       print(message " level=" << level <<
+             message " bottom=" << bottom)
+       print(message " mustInclude=" << mustInclude << message " thisRemainder=" << thisRemainder)
+       return res
+     all : List SubLattice := allLatticesNoRepeatedElements(bottom,thisRemainder,mustInclude,trace)
      if trace then
        print(message "allTopologies1 level=" << level <<
              message " topLevel=" << topLevel <<
@@ -713,7 +762,7 @@ TopologyFinite() : Exports == Impl where
              --message " topologyStack=" << topologyStack <<
              message " all=" << all)
      for lattice in all repeat
-       if membersBasis(lattice)=[[2],[1]] then trace:=true
+       --if membersBasis(lattice)=[[2],[1]] then trace:=true
        innerRes:List SubLattice := subLatticeStack
        if not empty1? lattice then
          oldBottom : List NNI := getBottom(lattice)
@@ -727,9 +776,10 @@ TopologyFinite() : Exports == Impl where
              if trace then
                print(message "   allTopologies *** top level ****")
            else
-             -- topology not yet complete so generate more lattices recursively
-             -- allNodes expands out basis elements of lattice into all combinations of
-             -- basis elements (powerset) with no offset (bottom not included).
+             -- Topology not yet complete so generate more lattices recursively
+             -- allNodes expands out basis elements of current lattice into all
+             -- combinations of basis elements (powerset) with no offset (bottom
+             -- not included).
              allNodes : List List NNI := expandNoOffset lattice
              if trace then
                print(message " allTopologies2 lattice=" << lattice)
@@ -739,7 +789,7 @@ TopologyFinite() : Exports == Impl where
              for newBottom in allNodes repeat
                if not (newBottom=[]) then
                  -- find all the elements in 'innerRes' that are above 'newBottom'.
-                 must : List List NNI := allAbove(newBottom,innerRes,oldBottom,trace)
+                 must : List List NNI := upRelative(lattice,newBottom)
                  newBottom2 : List NNI :=sort setUnion(newBottom,oldBottom)
                  if trace then
                    print(message " allTopologies2 in loop")
