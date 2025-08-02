@@ -39,6 +39,50 @@
 -- target := topoSpaceFiniteLeftOrder(["d","e"])
 -- h := homset() $ Homset(source,target)
 
+-- To run this code on FriCAS first install and run the  FriCAS code as described on
+-- https://fricas.sourceforge.net/download.html
+-- Then compile this code:
+-- )co fricas/topology.spad
+--
+-- Here are some things to test the code:
+--
+-- allTopologiesAsLattice [1,2,3]
+-- validateAll(allTopologiesAsLattice [1,2,3])
+-- 0 : 1
+-- 1 : 1
+-- 2 : 4
+-- 3 : 29
+-- 4 : 355
+-- 5 : 6942
+-- 6 : 209527
+-- 7 : 9535241
+-- 8 : 642779354
+-- 9 : 63260289423
+-- 10: 8977053873043
+-- toOpenSets allTopologiesAsLattice [1,2,3]
+-- allLatticesNoRepeatedElements([1,2,3],subLattice([],[]),true)
+-- allLatticesNoRepeatedElements([4,5],subLattice([1],[[2],[3]]),true)
+-- allLatticesNoRepeatedElements([4],subLattice([1],[[2],[3]]),true)
+-- b := subLattice([1],[[2,3]]) -- 1*P{2\/3}
+-- b := subLattice([1],[[2],[3]]) -- 1*P{2+3}
+-- existingSupersets([2],b)
+-- cc1 := allLattices([1,2,3])
+-- allDivisionsSet([1,2,3])
+--
+-- )set output length 245
+-- allTopologiesAsLattice [1,2,3,4]
+--
+-- )trace TopologyLattice )ops allTopologiesAsLattice )timer )nt
+-- Packages traced:
+--    TopologyLattice
+-- Parameterized constructors traced:
+--    TOPFIN
+-- (26) -> allTopologiesAsLattice [1,2,3]
+-- (29) -> )trace )stats
+--------------------- Traced function execution times ----------------------
+-- TopologyLattice.allTopologiesAsLattice,67 : 0.001 sec.
+
+
 )abbrev domain TOPFIN TopologyFinite
 ++ Author: Martin Baker
 ++ Description:
@@ -1005,6 +1049,804 @@ Homset(DOMAIN:TopoSpaceFinite(Symbol),CODOMAIN:TopoSpaceFinite(Symbol)) : Export
 
    coerce(x : %) : OutputForm ==
      message "homset" << bracket[outputOneEntry(a) for a in x]
+
+
+)abbrev domain TOPEXT SubLattice
+++ Author: Martin Baker
+++ Description:
+++   This is a complete lattice specified by basis nodes. That is the elements of the
+++   lattice may be specified either directly by a number such as '1' (basis node) or
+++   other nodes are only implied by a join of multiple numbers such as '1\/2\/3'.
+++   This is a complete lattice in that, if the lattice is divided into open sets, then
+++   these open sets have all meets and joins and top and bottom.
+++   These meets and joins can be extended to the whole topology, so it is a sub-topology.
+++   We can also define meets and joins of the sub-lattices themselves, these are only
+++   closed for meets so, for whole sub-lattices, it is a MeetSemilattice.
+++   Joins of whole sub-lattices are not closed but can 'split' into two lattices
+++   (see weakJoin) this is like 'glueing' lattices together.
+++   for more documentation see:
+++ References:
+++   https://www.euclideanspace.com/prog/scratchpad/mycode/topology/finite/
+
+SubLattice() : Exports == Impl where
+  NNI==> NonNegativeInteger
+  x<<y ==> hconcat(x::OutputForm, y::OutputForm)
+
+  Exports ==> MeetSemilattice with
+
+    subLattice : (bottom:List NNI,basis:List List NNI) -> %
+      ++ constructor: parameters are -
+      ++ bottom: is extension set. This is an open set which is included in every
+      ++        node so we factor it out to here.
+      ++ basis: is complete lattice on given set
+      ++ these are checked for disjointedness
+
+    getBasis : (a:%) -> List List NNI
+      ++ Returns the basis of this sub-lattice
+
+    getBottom : (a:%) -> List NNI
+      ++ Returns the bottom element of this sub-lattice
+
+    membersBasis : (s1:%) -> List List NNI
+      ++ Nodes of whole lattice in this sub-lattice basis
+      ++ when bottom is added to them all.
+
+    membersAll : (s1:%) -> List List NNI
+      ++ Nodes of whole lattice in this sub-lattice
+      ++ when bottom is added to them all.
+
+    memberElement? : (x:List NNI, s1:%) -> Boolean
+      ++ is an element a member of this sub-lattice
+
+    empty1? : (s1 : %) -> Boolean
+      ++ true if both lattice and extension are empty
+
+    cardinality1 : (s1:%) -> NNI
+      ++ number of elements in both lattice and extension
+
+    openSets : (a:%) -> List List NNI
+      ++ Expand out basis elements into all combinations of basis elements (powerset)
+      ++ with bottom included in each.
+      ++ The result can be interpreted as the open sets that make up this lattice
+
+    openSetsNoOffset : (a:%) -> List List NNI
+      ++ Expand out basis elements into all combinations of basis elements (powerset)
+      ++ with no offset for bottom.
+
+    weakJoin : (bb:%,aa:%) -> List %
+      ++ weak join of 'a' and 'b'
+      ++ uses weak distributive rule: (A+B) \/ C = split: (A \/ C + B) , (B \/ C + A)
+
+    joinVector : (a:%,vec:List %) -> List %
+      ++ join 'a' to each element of vector
+
+    subtractElements : (a : List NNI,bb : %) -> List NNI
+      ++ Remove all elements in sub-lattice 'bb' from set 'a'.
+
+    merge : (existingLattice : %,newBasis:%) -> %
+
+    subset? : (a : %,b:%) -> Boolean
+
+    addLattice : (aa:%,bb:%) -> %
+      ++ add two lattices by merging their basis open sets
+
+    addVector : (a:%,vec:List %) -> List %
+      ++ add (split A+B:=[A,B]) 'a' to each element of vector
+
+    nextVector : (a:%,vec:List %,trace : Boolean) -> List %
+      ++ For each element in the vector do both of:
+      ++ - Join (union) with 'a'
+      ++ - Add (split A+B:=[A,B]) to 'a'
+
+    subFace : (aa:%,element:List NNI) -> %
+      ++ re-factor to give a SubLattice whose bottom is the given element.
+
+    top : (a:%) -> List NNI
+      ++ Element of whole lattice which is top element of this sub lattice.
+
+    join : (a:%, b:%) -> List %
+      ++ The union of two complete lattices is not closed
+      ++ so produce a list instead
+
+  Impl ==> add
+
+   -- Rep holds bottom and basis where:
+   -- basis represents complete lattice on given set
+   --   the inner list is join of elements to give a node of lattice
+   --   outer list is basis
+   --   taking the power set of the outer list gives all elements of lattice.
+   -- bottom holds basis common to all nodes. Can think of this as an offset.
+   Rep := Record(bottom:List NNI,basis:List List NNI)
+
+   -- local function - helper for formatting output
+   stringSeperatedList(ts:List OutputForm,sep : String) : OutputForm ==
+     res:List OutputForm := []
+     for t in ts for i in 1.. repeat
+       if i=1
+         then res := cons(t,res)
+         else
+           res := cons(message sep,res)
+           res := cons(t,res)
+     hconcat (reverse res)
+
+   -- returns true if 'a' is a subset of 'b'.
+   --isSubset?(a:List NNI,b:List NNI) : Boolean ==
+   --  for a1 in a repeat
+   --    if not member?(a1,b) then return false
+   --  true
+
+   -- local function used by constructor to check validity
+   -- For valid lattice all basis must be independant.
+   -- (can only contain each element once)
+   isIndependant?(basis:List List NNI) : Boolean ==
+     for x in basis for i in 1.. repeat
+       for y in basis for j in 1.. repeat
+         if i<j then
+           if setIntersection(x,y) ~= [] then return false
+     true
+
+   -- local function used by constructor to sort into canonical form
+   gradeAndOrder(a:List NNI,b:List NNI) : Boolean ==
+     if #a < #b then return true
+     if #a > #b then return false
+     sa:List NNI := sort a
+     sb:List NNI := sort b
+     for ia in sa for ib in sb repeat
+         if ia < ib then return true
+         if ia > ib then return false
+     false
+
+   -- constructor: parameters are:
+   -- bottom is extension set
+   -- basis is complete lattice on given set
+   -- these are checked for disjointedness
+   subLattice(bottom:List NNI,basis:List List NNI) : % ==
+     if member?(bottom,basis) then
+         print (message "Attempt to construct subLattice basis=" << _
+         stringSeperatedList([x::OutputForm for x in bottom]$List(OutputForm),"\/") <<
+         message " bottom=" <<
+         stringSeperatedList([x::OutputForm for x in basis]$List(OutputForm),"+"))
+         error "basis and bottom must be disjoint"
+     if not isIndependant?(basis) then
+         print (message "Attempt to construct subLattice bottom=" << _
+         stringSeperatedList([x::OutputForm for x in bottom]$List(OutputForm),"\/") <<
+         message " basis=" <<
+         stringSeperatedList([x::OutputForm for x in basis]$List(OutputForm),"+"))
+         error "all basis must be independant"
+     -- sort into canonical form:
+     [sort bottom,sort(gradeAndOrder,basis)]
+
+   getBasis(a:%) : List List NNI ==
+     a.basis
+
+   getBottom(a:%) : List NNI ==
+     a.bottom
+
+   -- Nodes of whole lattice in this basis for sub-lattice
+   -- when bottom is added to them all.
+   membersBasis(s1:%) : List List NNI ==
+     s:List List NNI := s1.basis
+     s2:List NNI := s1.bottom
+     [sort setUnion(s2,s3) for s3 in s]
+
+   -- Nodes of whole lattice in this basis for sub-lattice
+   -- when bottom is added to them all.
+   membersAll(s1:%) : List List NNI ==
+     s:List List NNI := openSets s1
+     -- [sort concat s3 for s3 in s]
+
+   -- is an element a member of this sub-lattice
+   memberElement?(x:List NNI, s1:%) : Boolean ==
+     for y in membersBasis(s1) repeat
+       if x=y then return true
+     false
+
+   -- 'a' holds remaining basis elements so remove all elements in
+   -- sub-lattice 'bb' from set 'a'.
+   subtractElements(a : List NNI,bb : %) : List NNI ==
+     --print(message "subtractElements a=:" << a << message "-" << bb)
+     bbottom:List NNI := bb.bottom
+     b:List List NNI := bb.basis
+     x :List NNI := reduce(setUnion,b,[])
+     x:= setUnion(x,bbottom)
+     res : List NNI := a
+     --print(message "subtractElements x=" << x << message " res=" << res)
+     for b1 in x repeat
+       res := remove(b1,res)
+       --print(message "subtractElements b1=" << b1 << message " res=" << res)
+     --print(message "subtractElements res=" << res)
+     sort res
+
+   merge(existingLattice : %,newBasis:%) : % ==
+     b:List NNI := concat(existingLattice.bottom,newBasis.bottom)
+     m:List List NNI := concat(existingLattice.basis,newBasis.basis)
+     if not isIndependant?(m) then
+       print (message "merge non independant error m=" << m << message " newBasis=" << newBasis)
+     subLattice(b,m)
+
+   subset?(a : %,b:%) : Boolean ==
+     if empty1? b then return false
+     abasis: List List NNI := getBasis(a)
+     abottom : List NNI := getBottom(a)
+     bbasis: List List NNI := getBasis(b)
+     bbottom : List NNI := getBottom(b)
+     aBasisElements : List NNI := setUnion(reduce(setUnion,abasis,[]),abottom)
+     bBasisElements : List NNI := setUnion(reduce(setUnion,bbasis,[]),bbottom)
+     for x in aBasisElements repeat
+       if not member?(x,bBasisElements) then return false
+     true
+
+   -- local recursive helper function for openSets
+   -- to generate complete lattice (power set)
+   powerSet(s:List List NNI) : List List List NNI ==
+     empty? s => [s]
+     concat(p:=powerSet(rest s),[cons(first s,x) for x in p])
+
+   -- Expand out basis elements into all combinations of basis elements (powerset)
+   -- with bottom included in each.
+   -- The result can be interpreted as the open sets that make up this lattice
+   openSets(a:%) : List List NNI ==
+     lat:List List NNI := a.basis
+     e:List NNI := a.bottom
+     expanded:List List List NNI := powerSet lat
+     nodes : List List NNI := [reduce(setUnion,x,[]) for x in expanded]
+     [concat(e,x) for x in nodes]
+
+   -- Expand out basis elements into all combinations of basis elements (powerset)
+   -- with no offset for bottom.
+   openSetsNoOffset(a:%) : List List NNI ==
+     lat:List List NNI := a.basis
+     expanded:List List List NNI := powerSet lat
+     [reduce(setUnion,x,[]) for x in expanded]
+
+   -- weak join of 'a' and 'b'
+   -- uses weak distributive rule: (A+B) \/ C = split: (A \/ C + B) , (B \/ C + A)
+   weakJoin(bb:%,aa:%) : List % ==
+     abottom:List NNI := aa.bottom
+     a:List List NNI := aa.basis
+     bbottom:List NNI := bb.bottom
+     b:List List NNI := bb.basis
+     if a=[] or a=[[]] then return [bb]
+     if b=[] or b=[[]] then return [aa]
+     if abottom ~= bbottom then
+         print(message "error in weakJoin: base of " << aa <<
+               message "~= base of " << bb)
+     res: List % := []
+     for a1 in a repeat
+       for b1 in b repeat
+         a2:List List NNI := remove(a1,a)
+         b2:List List NNI := remove(b1,b)
+         d:List List NNI := [setUnion(a1,b1)]
+         d := setUnion(b2,setUnion(a2,d))
+         if not isIndependant?(d) then -- setUnion calculated twice *************
+           print(message "error in weakJoin: not independant:" << aa <<
+               message "+" << bb)
+         res := cons(subLattice(abottom,d),res) -- use constructor to enforce canonical form
+     reverse res
+
+   -- join 'a' to each element of vector
+   joinVector(a:%,vec:List %) : List % ==
+     if empty1? a then return vec
+     res : List % := []
+     for v in vec repeat
+       res := setUnion(weakJoin(a,v),res)
+     res
+
+   -- add two lattices by merging their basis
+   addLattice(aa:%,bb:%) : % ==
+     abottom:List NNI := aa.bottom
+     a:List List NNI := aa.basis
+     bbottom:List NNI := bb.bottom
+     b:List List NNI := bb.basis
+     if abottom ~= bbottom then
+         print(message "error in addLattice: base of " << aa <<
+               message "~= base of " << bb)
+     if b=[] or b=[[]] then return aa
+     if not isIndependant?(setUnion(a,b)) then -- setUnion calculated twice *************
+       print(message "error in addLattice: not independant:" << aa <<
+             message "+" << bb)
+     subLattice(abottom,setUnion(a,b)) -- use constructor to enforce canonical form
+
+   -- add (split A+B:=[A,B]) 'a' to each element of vector
+   addVector(a:%,vec:List %) : List % ==
+     if empty1? a then return vec
+     [addLattice(a,v) for v in vec | not empty1? v]
+
+   -- For each element in the vector do both of:
+   -- - Join (union) with 'a'
+   -- - Add (split A+B:=[A,B]) to 'a'
+   nextVector(element:%,vec:List %,trace : Boolean) : List % ==
+     res : List % := vec
+     if trace then
+        print(message "        nextVector element=" << element << message " vec=" << vec)
+     addv : List % := addVector(element,vec)
+     joinv : List % := joinVector(element,vec)
+     if trace then
+       print(message "nextVector element=" << element << message " vec=" << vec <<
+             message " addv=" << addv)
+       print(message "           joinv=" << joinv)
+     res := setUnion(addv,res)
+     setUnion(joinv,res)
+
+   -- re-factor to give a SubLattice whose bottom is the given element.
+   subFace(aa:%,element:List NNI) : % ==
+     abottom:List NNI := aa.bottom
+     a:List List NNI := aa.basis
+     if element=[] then
+       print(message "Error in subFace: element=[] " << aa)
+       return aa
+     if a=[] or a=[[]] then
+       print(message "Error in subFace: a=[] " << element)
+       return aa
+     exp : List List NNI := openSetsNoOffset(aa)
+     if not member?(element,exp) then
+       print(message "Error in subFace: invalid element " << element << message " in " << aa)
+       return aa
+     if setIntersection(abottom,element) ~= [] then
+       print(message "Error in subFace: element is bottom " << element << message " in " << aa)
+       return aa
+     newBottom:List NNI := setUnion(abottom,element)
+     newBasis:List List NNI := []
+     for b in a repeat
+       if setIntersection(b,element) = [] then newBasis := cons(b,newBasis)
+     subLattice(newBottom,reverse newBasis)
+
+   top(a:%) : List NNI ==
+     m : List List NNI := membersBasis(a)
+     if m=[] or m=[[]] then return []
+     r : List NNI := reduce(setUnion,m)
+     sort r
+
+   -- meet of two sub-lattices
+   _/_\(a:%, b:%) : % ==
+     abottom:List NNI := a.bottom
+     alat:List List NNI := a.basis
+     bbottom:List NNI := b.bottom
+     blat:List List NNI := b.basis
+     if (empty1? a) or (empty1? b) then return [[],[]]
+     if abottom=bbottom then
+         if alat=blat then return a
+         return [setUnion(abottom,bbottom),[]]
+     m1:List List NNI := setIntersection(alat,alat) -- interset with itself????????????????
+     m2:List List NNI := setIntersection(blat,blat)
+     [setUnion(abottom,bbottom),[]]
+
+   -- The union of two complete lattices is not closed
+   -- so produce a list instead
+   join(a:%, b:%) : List % ==
+     if a=b then return [a]
+     if (empty1? a) and (empty1? b) then return []
+     if empty1? a then return [b]
+     if empty1? b then return [a]
+     [a,b]
+
+   customSeperatedList(ts:List OutputForm,seperator:String) : OutputForm ==
+     res:List OutputForm := []
+     #ts=1 => first ts
+     for t in ts for i in 1.. repeat
+       if i=1
+         then res := cons(t,res)
+         else
+           res := cons(message seperator,res)
+           res := cons(t,res)
+     hconcat (reverse res)
+
+   formatInner(osin:List NNI) : OutputForm ==
+     #osin=0 => message "0"
+     #osin=1 => (first osin)::OutputForm
+     customSeperatedList([x::OutputForm for x in osin],"\/")
+
+   formatOS(os:List List NNI) : OutputForm ==
+     os2:List OutputForm := [formatInner(x) for x in os]
+     customSeperatedList(os2,"+")
+
+   coerce(s : %) : OutputForm ==
+     st : List NNI := s.bottom
+     stOut:OutputForm := formatInner(st)
+     fi : List List NNI := parts (s.basis)
+     if empty?(st) and empty?(s.basis) then return (message "0")
+     if empty?(st) then return (message "P") << (brace (formatOS fi))
+     if empty?(s.basis) then return stOut
+     stOut << (message "*P") << (brace (formatOS fi))
+
+   -- Constructors ensure these subLattices are sorted into canonical form so
+   -- they are equal if basis and bottom are equal.
+   _=(a:%,b:%) : Boolean ==
+     (a.basis = b.basis) and (a.bottom = b.bottom)
+
+   empty1?(s1 : %) : Boolean ==
+     empty?(s1.bottom) and empty?(s1.basis)
+
+   cardinality1(s1:%) : NNI ==
+     s:List NNI := s1.bottom
+     s2:List List NNI := s1.basis
+     -- cardinality(s)+cardinality(s2)
+     0
+
+)abbrev domain TOPLAT TopologyLattice
+++ Author: Martin Baker
+++ Description:
+++   A complete lattice, specified by basis nodes.
+++   for more documentation see:
+++ References:
+++   https://www.euclideanspace.com/prog/scratchpad/mycode/topology/finite/
+
+TopologyLattice() : Exports == Impl where
+  NNI==> NonNegativeInteger
+  x<<y ==> hconcat(x::OutputForm, y::OutputForm)
+  LATTICE ==> List List NNI
+  -- LATTICE holds a compete lattice where:
+  --  the inner list is join of elements to give nodes
+  --  outer list is basis
+  --  taking the power set of the outer list gives all elements of lattice.
+
+  Exports ==> SetCategory() with
+
+    topologyLattice : (List List NNI) -> %
+      ++ constructor
+
+    topologyLattice2 : (List SubLattice) -> %
+      ++ constructor
+
+    topologyLatticeTrivial : () -> %
+      ++ Constructor for trivial topology
+      ++ Only empty(doesn't need to be explicitly included) and full open sets
+
+    topologyLatticeDiscrete : (dim:NNI) -> %
+      ++ Constructor for discrete topology
+      ++ includes all open sets
+      ++ Don't need to explicitly include empty
+
+    topologyLatticeLeftOrder : (dim:NNI) -> %
+      ++ Constructor for order topology
+      ++ The order topology may be considered on partially ordered sets as
+      ++ well as linearly ordered sets
+      ++ The open sets are {x | x<b} where b is 1..max
+      ++ On a linearly ordered set it coincides with the interval topology
+
+    getTopology : (a:%) -> List List NNI
+      ++ returns open sets as list of list
+
+    getOpenSets : (a:%) -> List SubLattice
+      ++ returns open sets as list of set
+
+    full2basis : (a:%) -> %
+      ++ Remove non-basis open sets
+      ++ That is, for each element, only the smallest open set that includes it.
+
+    basis2full : (a:%) -> %
+      ++ Add all unions of open sets not already included
+
+    validate : (a:%) -> Boolean
+
+    validateAll : (a:List %) -> Boolean
+
+    coerce : (x : %) -> OutputForm
+      ++ display as symbols
+
+    getDimension : (a : %) -> NNI
+
+    product : (a : %, b : %) -> %
+
+    powerSetGradedOld : (d:NNI,grade:NNI) -> List List NNI
+
+    allLatticesNoRepeatedElements : (basis:List NNI,
+                                 existingLattice : SubLattice,trace : Boolean) -> List SubLattice
+      ++ exported for debug use only *********************************************
+
+    nerveConstruction : (a : %) -> FiniteSimplicialComplex(Integer)
+      ++ A nerve construction creates a simplicial complex with the
+      ++ topological properties of a given set family.
+      ++ The nerve construction is based on a cover of the set family
+      ++ The resulting complex is a discrete representation of that cover.
+
+    toOpenSet : (a1:%) -> TopologyFinite
+
+    toOpenSets : (a1:List %) -> List TopologyFinite
+
+    testValidTopol : (allDegree:List SubLattice,degree:NNI) -> Boolean
+
+    allTopologiesAsLattice : (s : List NNI) -> List %
+      ++ Given a set construct a list of all possible topologies on that set
+      ++ Each of these topologies is made up from sub-lattices (complete lattices)
+      ++ that cover the space.
+      ++ Warning: This function can return very long lists, if the input set is 6 or
+      ++ more elements then the computer may run out of resources and crash.
+      ++ I have written an explanation of this algorithm on the web page here:
+      ++ https://www.euclideanspace.com/maths/topology/topologicalSpace/finite/extension/index.htm
+
+    countAllTopologiesOnSet : (s : List NNI) -> NNI
+      ++ Given a set count all possible topologies on that set
+
+  Impl ==> add
+
+   -- A complete lattice, specified by basis nodes.
+   Rep := Record(basis:Boolean,topology:List SubLattice)
+
+   -- returns open sets as list of set
+   getOpenSets(a:%) : List SubLattice ==
+     a.topology
+
+   getTopology(a:%) : LATTICE ==
+     sub : List SubLattice := a.topology
+     res : LATTICE := []
+     for x in sub repeat
+       m:LATTICE := membersBasis(x)
+       res := concat (m,res)
+     res
+
+   setTopologyFromList(t:LATTICE) : List SubLattice ==
+     [subLattice(a,[]) for a in t]
+
+   -- constructor
+   topologyLattice(a : LATTICE) : % ==
+     [false,setTopologyFromList(a)]
+
+   topologyLattice2(a : List SubLattice) : % ==
+     [false,a]
+
+   topologyLatticeTrivial() : % ==
+     [false,empty]
+
+   -- local function to add if new
+   addIfNew(lst : LATTICE, unsorted : List NNI) : LATTICE ==
+       if empty?(unsorted) then return lst
+       sorted : List(NNI) := sort(unsorted)
+       if member?(sorted, lst) then return lst
+       cons(sorted,lst)
+
+   -- generate discrete topology
+   genDiscreteTopology(lst : LATTICE,level : NNI,
+       thisOpenSet : List(NNI), dim : NNI) : LATTICE ==
+     -- print(message "genDiscreteTopology(" << lst  << message ","
+     --  << level  << message "," << thisOpenSet  << message "," << dim << message ")")
+     top1:LATTICE := lst
+     for i in 1..dim repeat
+       openset1 : List NNI := [i]
+       if not member?(i,thisOpenSet) then
+         -- print(message "genDiscreteTopology not member(" << thisOpenSet  << message ","
+         --   << i  << message ")")
+         openset2 : List(NNI) := concat(thisOpenSet,openset1)
+         if (level+1)<dim then
+           top1 := genDiscreteTopology(top1,level+1,openset2,dim)
+         top1 := addIfNew(top1,openset2)
+     top1
+
+   topologyLatticeDiscrete(dim:NNI) : % ==
+     top1:LATTICE := empty
+     top1 := genDiscreteTopology(top1,1,empty,dim)
+     [false,setTopologyFromList(top1)]
+
+   -- generate order topology
+   genOrderTopology(lst : LATTICE,level : NNI,
+       thisOpenSet : List(NNI), dim : NNI) : LATTICE ==
+     -- print(message "genOrderTopology(" << lst  << message ","
+     --  << level  << message "," << thisOpenSet  << message "," << dim << message ")")
+     top1:LATTICE := lst
+     openset1:List NNI := []
+     for i in 1..dim repeat
+       -- print(message "genOrderTopology loop(" << top1  << message "," << i  << message ")")
+       openset1 := cons(i,openset1)
+       top1 := cons(openset1,top1)
+     reverse top1
+
+   -- generate order topology
+   topologyLatticeLeftOrder(dim:NNI) : % ==
+     top1:LATTICE := empty
+     top1 := genOrderTopology(top1,1,empty,dim)
+     [false,setTopologyFromList(top1)]
+
+   -- To find a basis: for every element of the set find the smallest
+   -- open set that contains it.
+   -- Remove non-basis open sets
+   -- That is, for each element, only the smallest open set that includes it.
+   full2basis(a:%) : % ==
+     -- assume number of elements is maximum index
+     numEle:NNI := 0
+     top1:LATTICE := getTopology(a)
+     for x in top1 repeat
+       for y in x repeat
+         if y>numEle then numEle:=y
+     basisSets:LATTICE := empty
+     for currEle in 1..numEle repeat
+       basisCandidate:List NNI := empty
+       minSize:NNI := 0
+       for currOpenSet in top1 repeat
+         currSize:NNI := #currOpenSet
+         if member?(currEle,currOpenSet) and not empty?(currOpenSet) and
+          (minSize=0 or currSize < minSize) then
+            --print(message "adding" << currOpenSet  << message " minSize="
+            --  << minSize << message " currEle=" << currEle)
+            basisCandidate := currOpenSet
+            minSize := #currOpenSet
+       basisSets := addIfNew(basisSets,basisCandidate)
+     [true,setTopologyFromList(basisSets)]
+
+   unionLocal(a:List NNI, b:List NNI) : List NNI ==
+     res:List NNI := a
+     for x in b repeat
+       if not member?(x, res) then res:=cons(x,res)
+     res
+
+   -- Add all unions of open sets not already included
+   basis2full(a:%) : % ==
+     top1:LATTICE := getTopology(a)
+     top2:LATTICE := copy(top1) -- so we dont alter top1 inside loop
+     for x in top1 repeat
+       for y in top1 repeat
+         z : List NNI := sort (unionLocal(x,y))
+         top2 := addIfNew(top2,z)
+         -- print(message "x=" << x  << message " y="
+         --  << y << message " union=" << z)
+     [false,setTopologyFromList(top2)]
+
+   -- display
+   coerce(x : %) : OutputForm ==
+     x1:List SubLattice := x.topology
+     msg:OutputForm := if x.basis then message "basis=" else message "topology="
+     msg << bracket[(a::OutputForm) for a in x1]
+
+   _=(a:%,b:%) : Boolean ==
+     a.topology=b.topology
+
+   validate(a1:%) : Boolean ==
+     a:List SubLattice := a1.topology
+     for x in a for i in 1.. repeat
+       for y in a for j in 1.. repeat
+         if i<j then
+           if x=y then
+             print(message "duplicate sub:lattice:" << x)
+             return false
+     true
+
+   validateAll(a:List %) : Boolean ==
+     for x in a for i in 1.. repeat
+       if not validate(x) then
+         print(message "not valid:" << x)
+         return false
+       for y in a for j in 1.. repeat
+         if i<j then
+           if x=y then
+             print(message "duplicate " << x)
+             return false
+     true
+
+   toOpenSet(a1:%) : TopologyFinite ==
+     res : List List NNI := []
+     a:List SubLattice := a1.topology
+     for x in a repeat
+       res := setUnion(res,openSets(x))
+     topologyFinite res
+
+   toOpenSets(a1:List %) : List TopologyFinite ==
+     [toOpenSet(x) for x in a1]
+
+   -- For valid lattice all basis must be independant.
+   -- They can only contain the same element once.
+   isIndependant?(basis:List List NNI) : Boolean ==
+     for x in basis for i in 1.. repeat
+       for y in basis for j in 1.. repeat
+         if i<j then
+           if setIntersection(x,y) ~= [] then return false
+     true
+
+   -- All lattices where each 'point' is included 0 or 1 times but not more.
+   -- A 'point' may be an element (such as 1) or a join of elements (such as 1\/2).
+   -- if basis=[1,2] then output is: [],[1],[2],[1\/2],[1+2]
+   -- if basis=[1,2,3] then output is: [],[1],[2],[3],[1\/2],[1\/3],[2\/3],[2+1],
+   --                   [3+1],[3+2],[1+2\/3],[2+1\/3],[3+1\/2],[1\/2\/3],[3+2+1]
+   -- Local function used by allTopologies function.
+   allLatticesNoRepeatedElements(basis:List NNI,
+                          existingLattice : SubLattice,trace : Boolean) : List SubLattice ==
+     -- ********************** BUG does not work if basis has more than one element with existingLattice
+     if trace then
+       print(message "      allLatticesNoRepeatedElements basis=" << basis)
+       print(message "      allLatticesNoRepeatedElements existingLattice=" << existingLattice)
+     -- ???????????????????????????????????????????????????????????????????????????????????????
+     if #basis < 1 then
+       return []
+     res : List SubLattice := []
+     for ele in basis repeat
+       newBasis : List List NNI := [[ele]]
+       newLattice: SubLattice := subLattice([],newBasis) -- merge(existingLattice,newBasis)
+       if not empty1? existingLattice then
+         -- following can cause duplicated basis
+         if not isIndependant?(newBasis) then
+           error "allLatticesNoRepeatedElements basis not independant."
+         if trace then
+           print(message "      allLatticesNoRepeatedElements existingLattice not empty. basis=" << basis <<
+                 message " existingLattice=" << existingLattice)
+       if empty? res
+         then
+           res := [subLattice([],[]),newLattice]
+           -- subLattice([],[]) not stricly correct as empty lattice is
+           -- not a valid lattice but is required as a marker.
+         else
+           if not isIndependant?(newBasis) then
+             print(message "allLatticesNoRepeatedElements2 basis not independant. newBasis=" << newBasis)
+             return res
+           if trace then
+             print(message "         allLatticesNoRepeatedElements3 basis=" << basis <<
+                   message " existingLattice=" << existingLattice)
+             print(message "         newBasis=" << newBasis << message " res=" << res)
+           res : List SubLattice := nextVector(newLattice,res,false)
+     if trace then
+       print(message "      allLatticesNoRepeatedElements4 basis=" << basis <<
+           message " existingLattice=" << existingLattice)
+       print(message "         res=" << res)
+     res
+
+   -- Recursively called to construct a list of all possible topologies on that set.
+   -- Parameters:
+   -- thisRemainder - elements yet to be covered
+   -- existingLattice - sub-lattice below this one
+   -- subLatticeStack - A list of the subLattices below this.
+   allTopologies(level:NNI,thisRemainder : List NNI,
+        existingLattice : SubLattice, subLatticeStack : List SubLattice,
+        topologyStack : List %,trace : Boolean) : List % ==
+     -- *************** switch on trace here for debug ******************************
+     --if getBasis(lattice)=[[1],[2]] and bottom=[4]
+     --if bottom=[4]
+     --     and existingLattice=[[3]] then
+     --  if trace=false then print(message "allTopologies trace switched on for " << thisRemainder <<
+     --                            message " level=" << level)
+     --trace:=true
+     -- *****************************************************************************
+     res:List % := topologyStack
+     if trace then
+       print(message "allTopologies1 level=" << level <<
+             message " thisRemainder=" << thisRemainder)
+       print(message " existingLattice=" << existingLattice <<
+             message " subLatticeStack=" << subLatticeStack <<
+             message " topologyStack=" << topologyStack)
+     all1 : List SubLattice := allLatticesNoRepeatedElements(thisRemainder,existingLattice,false)
+     all : List SubLattice := []
+     for lat in all1 repeat
+       lat1 : SubLattice := merge(existingLattice,lat)
+       if not subset?(lat1,existingLattice)
+         then
+           all := cons(lat1,all)
+           --print(message "allTopologies2:" << lat1 << message " is not subset of:" << existingLattice)
+         --else
+           --print(message "allTopologies2:" << lat1 << message " is subset of:" << existingLattice)
+     --if trace then  print(message " all=" << all)
+     for lattice in all repeat
+       innerRes:List SubLattice := subLatticeStack -- A list of the subLattices below this.
+       if not empty1? lattice then
+         remainingBasis : List NNI := subtractElements(thisRemainder,lattice)
+         innerRes := cons(lattice,innerRes)
+         if remainingBasis=[]
+           then
+             -- this topology is complete so add it to list
+             res := cons(topologyLattice2(reverse innerRes),res)
+             --if trace then
+             --  print(message "   allTopologies *** top level ****")
+           else
+             -- Topology not yet complete so generate more lattices recursively
+             -- allNodes expands out basis elements of current lattice into all
+             -- combinations of basis elements (powerset) with no offset (bottom
+             -- not included).
+             allNodes : List List NNI := openSetsNoOffset lattice
+             for newBottom in allNodes repeat
+               --if trace and newBottom=[] then print(message " newBottom=[]")
+               if not (newBottom=[]) then
+                 must: SubLattice := subFace(lattice,newBottom)
+                 if level>999 then error "loop detected"
+                 res := allTopologies(level+1,remainingBasis,
+                                        must,innerRes,res,trace)
+     if trace then print(message "   allTopologies complete res=" << res)
+     reverse res
+
+   -- Given a set, construct a list of all possible topologies on that set
+   -- Each of these topologies is made up from sub-lattices (complete lattices of open sets)
+   -- that cover the space.
+   -- Warning: This function can return very long lists, if the input set is 6 or
+   -- more elements then the computer may run out of resources and crash.
+   -- I have written an explanation of this algorithm on the web page here:
+   -- https://www.euclideanspace.com/maths/topology/topologicalSpace/finite/extension/index.htm
+   allTopologiesAsLattice(topLevel : List NNI) : List % ==
+     -- call recursively
+     allTopologies(1,topLevel,subLattice([],[]),[],[],false)
 
 --Copyright (c) 2025, Martin J Baker.
 --All rights reserved.
