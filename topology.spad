@@ -5,6 +5,13 @@
 --
 -- Here are some things to test the code:
 --
+-- testing extensions:
+--
+-- example()
+-- a := allExtensions([],[1,2,3])
+-- [extend(x) for x in a]
+-- a := allExtensions([subLattice([],[[1],[2]])],[1,2,3,4])
+--
 -- test topology classes
 -- t := topologyIsoClass([1,2,2,3],[[2,1],[3,1],[4,2],[4,2]])
 -- listMeet(t,2,3)
@@ -1518,40 +1525,216 @@ TopolExtension() : Exports == Impl where
   Exports ==> SetCategory() with
 
     topolExtension : (ext:List Record(sublat:SubLattice,
-              extension:List Record(source:List NNI,target:List NNI))) -> %
+              extension:List Record(source:List NNI,target:List List NNI))) -> %
       ++ constructor: parameters are -
       ++ sublat : sub-lattices being extended
       ++ extension : source and target points
 
     example : () -> %
 
+    extend : (ext : %) -> List SubLattice
+
+    allExtensions : (start : List SubLattice, top:List NNI) -> List %
+
+    allLatticesNoRepeatedElements : (basis:List NNI,trace : Boolean) -> List List List NNI
+      ++ All lattices where each 'element' is included 0 or 1 times but not more.
+      ++ An 'element' may be a basis element (such as 1) or a join of basis (such as 1\/2).
+      ++ if basis=[1,2] then output is: [],[1],[2],[1\/2],[1+2]
+      ++ if basis=[1,2,3] then output is: [],[1],[2],[3],[1\/2],[1\/3],[2\/3],[2+1],
+      ++                   [3+1],[3+2],[1+2\/3],[2+1\/3],[3+1\/2],[1\/2\/3],[3+2+1]
+      ++ Local function used by allExtensions function.
+
   Impl ==> add
 
    Rep := List Record(sublat:SubLattice,
-          extension:List Record(source:List NNI,target:List NNI))
+          extension:List Record(source:List NNI,target:List List NNI))
 
    -- local function - helper for formatting output
    topolExtension(ext:List Record(sublat:SubLattice,
-            extension:List Record(source:List NNI,target:List NNI))) : % ==
+            extension:List Record(source:List NNI,target:List List NNI))) : % ==
      ext
 
    example() : % ==
      b := subLattice([],[[1,2]]) -- P{1\/2}
-     e : Record(source:List NNI,target:List NNI) := [[1,3],[2,4]]
+     e1 : Record(source:List NNI,target:List List NNI) := [[1],[[3]]]
+     e2 : Record(source:List NNI,target:List List NNI) := [[2],[[4]]]
      x : Record(sublat:SubLattice,
-          extension:List Record(source:List NNI,target:List NNI)) := [b,[e]]
+          extension:List Record(source:List NNI,target:List List NNI)) := [b,[e1,e2]]
      [x]
 
    coerce(ext : %) : OutputForm ==
      res:List OutputForm := []
      for e in ext repeat
-       extens:List Record(source:List NNI,target:List NNI) := e.extension
+       extens:List Record(source:List NNI,target:List List NNI) := e.extension
        res1:List OutputForm := []
        for exten in extens repeat
          s:OutputForm := (exten.source)::OutputForm << message "->" << exten.target
          res1 := cons(s,res1)
        res := cons((e.sublat)::OutputForm << bracket res1,res)
      bracket res
+
+   extend(ext : %) : List SubLattice ==
+     trace : Boolean := false --true
+     res:List SubLattice := []
+     for e in ext repeat
+       extens:List Record(source:List NNI,target:List List NNI) := e.extension
+       basis : List List NNI := getBasis(e.sublat)
+       bottom : List NNI := getBottom(e.sublat)
+       if trace then
+         print(message "extend extens=" << extens <<
+               message " basis=" << basis <<
+               message " bottom=" << bottom)
+       res1:List SubLattice := []
+       for exten in extens repeat
+         sor : List NNI := exten.source
+         tar : List List NNI := exten.target
+         newBasis : List List NNI := [setDifference(b,sor) for b in basis]
+         newBasis2 : List List NNI := setUnion(tar,newBasis)
+         newBasis := [x for x in newBasis2 | x ~= []]
+         newBottom : List NNI := setUnion(sor,bottom)
+         if trace then
+           print(message "extend   sor=" << sor <<
+                 message " tar=" << tar <<
+                 message " newBottom=" << newBottom <<
+                 message " newBasis=" << newBasis)
+         sl:SubLattice := subLattice(newBottom,newBasis)
+         res1 := cons(sl,res1)
+       res := setUnion(res,res1)
+     res
+
+   -- For valid lattice all basis must be independant.
+   -- They can only contain the same element once.
+   isIndependant?(basis:List List NNI) : Boolean ==
+     for x in basis for i in 1.. repeat
+       for y in basis for j in 1.. repeat
+         if i<j then
+           if setIntersection(x,y) ~= [] then return false
+     true
+
+   -- weak join of 'a' and 'b'
+   -- uses weak distributive rule: (A+B) \/ C = split: (A \/ C + B) , (B \/ C + A)
+   weakJoin(b:List List NNI,a:List List NNI) : List List List NNI ==
+     if a=[] or a=[[]] then return [b]
+     if b=[] or b=[[]] then return [a]
+     res: List List List NNI := []
+     for a1 in a repeat
+       for b1 in b repeat
+         a2:List List NNI := remove(a1,a)
+         b2:List List NNI := remove(b1,b)
+         d:List List NNI := [setUnion(a1,b1)]
+         d := setUnion(b2,setUnion(a2,d))
+         if not isIndependant?(d) then -- setUnion calculated twice *************
+           print(message "error in weakJoin: not independant:" << a <<
+               message "+" << b)
+         res := cons(d,res) -- use constructor to enforce canonical form
+     reverse res
+
+   -- join 'a' to each element of vector
+   joinVector(a:List List NNI,vec:List List List NNI) : List List List NNI ==
+     if empty? a then return vec
+     res : List List List NNI := []
+     for v in vec repeat
+       res := setUnion(weakJoin(a,v),res)
+     res
+
+   -- add two lattices by merging their basis
+   addLattice(a:List List NNI,b:List List NNI) : List List NNI ==
+     if b=[] or b=[[]] then return a
+     if not isIndependant?(setUnion(a,b)) then -- setUnion calculated twice *************
+       print(message "error in addLattice: not independant:" << a <<
+             message "+" << b)
+     setUnion(a,b) -- use constructor to enforce canonical form
+
+   -- add (split A+B:=[A,B]) 'a' to each element of vector
+   addVector(a:List List NNI,vec:List List List NNI) : List List List NNI ==
+     if empty? a then return vec
+     [addLattice(a,v) for v in vec | not empty? v]
+
+   -- For each element in the vector do both of:
+   -- - Join (union) with 'a'
+   -- - Add (split A+B:=[A,B]) to 'a'
+   nextVector(element:List List NNI,vec:List List List NNI,trace : Boolean) : List List List NNI ==
+     res : List List List NNI := vec
+     if trace then
+        print(message "        nextVector element=" << element << message " vec=" << vec)
+     addv : List List List NNI := addVector(element,vec)
+     joinv : List List List NNI := joinVector(element,vec)
+     if trace then
+       print(message "nextVector element=" << element << message " vec=" << vec <<
+             message " addv=" << addv)
+       print(message "           joinv=" << joinv)
+     res := setUnion(addv,res)
+     setUnion(joinv,res)
+
+   -- All lattices where each 'element' is included 0 or 1 times but not more.
+   -- An 'element' may be a basis element (such as 1) or a join of basis (such as 1\/2).
+   -- if basis=[1,2] then output is: [],[1],[2],[1\/2],[1+2]
+   -- if basis=[1,2,3] then output is: [],[1],[2],[3],[1\/2],[1\/3],[2\/3],[2+1],
+   --                   [3+1],[3+2],[1+2\/3],[2+1\/3],[3+1\/2],[1\/2\/3],[3+2+1]
+   -- Local function used by allExtensions function.
+   allLatticesNoRepeatedElements(basis:List NNI,trace : Boolean) : List List List NNI ==
+     if trace then
+       print(message "      allLatticesNoRepeatedElements basis=" << basis)
+     if #basis < 1 then
+       return []
+     res : List List List NNI := []
+     for ele in basis repeat
+       newBasis : List List NNI := [[ele]]
+       if empty? res
+         then
+           res := [[],newBasis]
+           -- subLattice([],[]) not stricly correct as empty lattice is
+           -- not a valid lattice but is required as a marker.
+         else
+           if not isIndependant?(newBasis) then
+             print(message "allLatticesNoRepeatedElements2 basis not independant. newBasis=" << newBasis)
+             return res
+           if trace then
+             print(message "         allLatticesNoRepeatedElements3 basis=" << basis)
+             print(message "         newBasis=" << newBasis << message " res=" << res)
+           res : List List List NNI := nextVector(newBasis,res,false)
+     if trace then
+       print(message "      allLatticesNoRepeatedElements4 basis=" << basis)
+       print(message "         res=" << res)
+     res
+
+
+   -- local recursive helper function for openSets
+   -- to generate complete lattice (power set)
+   powerSet(s:List NNI) : List List NNI ==
+     empty? s => [s]
+     concat(p:=powerSet(rest s),[cons(first s,x) for x in p])
+
+   allExtensions(start : List SubLattice, top:List NNI) : List % ==
+     trace : Boolean := false
+     res : List % := []
+     if start=[] then
+       remComb : List List List NNI := allLatticesNoRepeatedElements(top,false)
+       for r in remComb repeat
+         n:List NNI := []
+         e:Record(source:List NNI,target:List List NNI) := [n,r]
+         e1 : Record(sublat:SubLattice,
+            extension:List Record(source:List NNI,target:List List NNI)) := [subLattice([],[]),[e]]
+         res := cons(topolExtension [e1], res)
+       return res
+     for thisStart in start repeat
+       remaining : List NNI := subtractElements(top,thisStart)
+       remComb : List List List NNI := allLatticesNoRepeatedElements(remaining,false)
+       nodes : List List NNI := openSetsNoOffset(thisStart)
+       if trace then
+         print(message "allExtensions thisStart=" << thisStart <<
+               message " remComb=" << remComb << message " nodes=" << nodes)
+       for n in nodes repeat
+         for r in remComb repeat
+           if r ~= [] then
+             if trace then
+               print(message "allExtensions thisStart=" << thisStart <<
+                     message " remComb=" << remComb << message " nodes=" << nodes)
+             e:Record(source:List NNI,target:List List NNI) := [n,r]
+             e1 : Record(sublat:SubLattice,
+                extension:List Record(source:List NNI,target:List List NNI)) := [thisStart,[e]]
+             res := cons(topolExtension [e1], res)
+     res
 
 )abbrev domain TOPLAT TopologyLattice
 ++ Author: Martin Baker
@@ -1838,7 +2021,7 @@ TopologyLattice() : Exports == Impl where
      res : List SubLattice := []
      for ele in basis repeat
        newBasis : List List NNI := [[ele]]
-       newLattice: SubLattice := subLattice([],newBasis) -- merge(existingLattice,newBasis)
+       newLattice: SubLattice := subLattice([],newBasis)
        if not empty1? existingLattice then
          -- following can cause duplicated basis
          if not isIndependant?(newBasis) then
